@@ -2,13 +2,15 @@ import pandas as pd
 import os
 from uuid import uuid4
 import datetime as dt
+from contextlib import contextmanager
 
 
 DEFAULT_PANDAS_DB_PATH = os.environ.get("PANDAS_DB_PATH")
 
 class PandasDB():
-    def __init__(self, path=None):
+    def __init__(self, path=None, context=None):
         self.path = path or DEFAULT_PANDAS_DB_PATH
+        self.context = context or {}
     
     def get_df(self):
         try:
@@ -20,6 +22,20 @@ class PandasDB():
     def save(self, **data):
         df = self.get_df()
         data['entry_created'] = dt.datetime.now()
+        data.update(self.context)
         data = {k: [v] for k, v in data.items()}
         df = pd.concat([df, pd.DataFrame(data, index=[uuid4()])], axis=0)
         df.to_csv(os.path.join(self.path, ".local_db.csv"))
+    
+    @contextmanager
+    def set_context(self, **data):
+        original_context = self.context.copy()
+        try:
+            self.context.update(data)
+            yield self
+        finally:
+            self.context = original_context
+
+
+
+pandas_db = PandasDB()
