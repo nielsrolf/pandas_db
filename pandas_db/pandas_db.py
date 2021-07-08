@@ -3,6 +3,7 @@ import os
 from uuid import uuid4
 import datetime as dt
 from contextlib import contextmanager
+import shutil
 
 
 DEFAULT_PANDAS_DB_PATH = os.environ.get("PANDAS_DB_PATH")
@@ -29,16 +30,16 @@ class PandasDB():
     
     def latest(self, keys=None, metrics=None):
         assert not (keys is None and metrics is None), "Specify either keys or metrics"
-        df = self.get_df()
+        df = self.get_df().fillna("?")
         cols = df.columns
         if keys is None:
-            keys = [c for c in cols if not c in metrics and c != "entry_created"]
+            keys = [c for c in cols if not c in metrics and c != "pandas_db.created"]
         def latest_entry(values):
             values = values.dropna()
             if len(values) == 0:
                 return None
             return values[-1]
-        df = df.sort_values("entry_created")\
+        df = df.sort_values("pandas_db.created")\
                  .groupby(keys)\
                  .aggregate(latest_entry)
         if metrics is None:
@@ -47,7 +48,7 @@ class PandasDB():
 
     def save(self, **data):
         df = self.get_df()
-        data['entry_created'] = dt.datetime.now()
+        data['pandas_db.created'] = dt.datetime.now()
         data.update(self.context)
         data = {k: [maybe_float(v)] for k, v in data.items()}
         df = pd.concat([df, pd.DataFrame(data, index=[uuid4()])], axis=0)
@@ -61,6 +62,20 @@ class PandasDB():
             yield self
         finally:
             self.context = original_context
+    
+    def save_artifact(self, filepath, **data):
+        file_id = str(uuid4().hex[:6])
+        filename = filepath.split("/")[-1]
+        dest_dir = os.path.join(self.path,
+                            ".pandas_db_files",
+                            file_id)
+        os.makedirs(dest_dir)
+        dest = os.path.join(dest_dir, filename)
+        shutil.copy(filepath, dest)
+        self.save(file=f"{file_id}/{filename}", filename=filename, **data)
+
+
+
 
 
 
