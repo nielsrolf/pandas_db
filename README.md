@@ -21,5 +21,5 @@ You can also put `export PANDAS_DB_PATH="/some/path" ` in your bashrc and init v
 ## Setup
 ```sh
 # Install dependencies
-pip install -e .
+pip install git+git://github.com/nielsrolf/pandas_db
 ```
