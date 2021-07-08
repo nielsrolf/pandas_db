@@ -7,6 +7,14 @@ from contextlib import contextmanager
 
 DEFAULT_PANDAS_DB_PATH = os.environ.get("PANDAS_DB_PATH")
 
+
+def maybe_float(v):
+    try:
+        return float(v)
+    except (ValueError, TypeError):
+        return v
+
+
 class PandasDB():
     def __init__(self, path=None, context=None):
         self.path = path or DEFAULT_PANDAS_DB_PATH
@@ -23,7 +31,7 @@ class PandasDB():
         df = self.get_df()
         data['entry_created'] = dt.datetime.now()
         data.update(self.context)
-        data = {k: [v] for k, v in data.items()}
+        data = {k: [maybe_float(v)] for k, v in data.items()}
         df = pd.concat([df, pd.DataFrame(data, index=[uuid4()])], axis=0)
         df.to_csv(os.path.join(self.path, ".local_db.csv"))
     
