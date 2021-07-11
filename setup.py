@@ -10,7 +10,7 @@ setup(
     packages=find_packages(),
     package_data={},
     scripts=[],
-    install_requires=["pandas", "plotly", "dash"],
+    install_requires=["pandas", "plotly", "dash", "dash-extensions"],
     extras_require={"test": ["pytest", "pylint!=2.5.0"],},
     entry_points={"console_scripts": [],},
     classifiers=[],

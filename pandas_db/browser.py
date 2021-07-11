@@ -5,6 +5,9 @@ import dash_html_components as html
 import pandas as pd
 from pandas_db import pandas_db, maybe_float
 import numpy as np
+from dash_extensions import Keyboard
+
+import json
 
 
 
@@ -32,9 +35,11 @@ class State():
         self.fetch()
     
     def fetch(self):
+        print("fetch")
         df = pandas_db.latest(keys=self.keys).reset_index()
         df = drop_constant_columns(df)
         self.df = cols_maybe_float(df)
+        print("end fetch")
 
 
 STATE = State(['model', 'file'])
@@ -60,27 +65,28 @@ main_table = dash_table.DataTable(
 
 @app.callback(
     Output('hidden', 'children'),
-    Input('table-filtering', 'data'))
-def update_db(rows):
+    Input('table-filtering', 'data'),
+    Input("keyboard", "keydown"))
+def save(rows, key_event):
+    if key_event is None:
+        return
+    if not (key_event['key'] == "s" and key_event["ctrlKey"] == True):
+        return None
     STATE.fetch()
     edited = pd.DataFrame(rows, columns=STATE.df.columns)
-    edited = cols_maybe_float(edited)
-    original = cols_maybe_float(STATE.df.copy())
-    edited['tmp_key'] = ""
-    
-    original['tmp_key'] = ""
-    for key in STATE.keys:
-        edited['tmp_key'] = edited['tmp_key'].str.cat(edited[key])
-        original['tmp_key'] = original['tmp_key'].str.cat(original[key])
+    cols = [c for c in edited.columns if c != "pandas_db.created"]
+    edited = cols_maybe_float(edited)[cols]
+    original = STATE.df[cols]
 
-    original = edited[['tmp_key']].merge(original, on='tmp_key')
+    original = edited[STATE.keys].merge(original, on=STATE.keys)
     original = original[edited.columns]
     row_idx, col_idx = np.where(original != edited)
     for r, c in zip(row_idx, col_idx):
         row = edited.iloc[r]
+        previous = original.iloc[r]
+        print(edited.columns[c], f":{previous[c]} -> {row[c]}")
         data = {k: row[k] for k in STATE.keys}
         data[edited.columns[c]] = row[edited.columns[c]]
-        print("pandas_db.save: ", data)
         pandas_db.save(**data)
     STATE.fetch()
     return None
@@ -152,8 +158,10 @@ hidden_view = html.Div(id='hidden')
 app.layout = html.Div([
     detail_view,
     main_table,
-    hidden_view
+    hidden_view,
+    Keyboard(id="keyboard")
 ])
+
 
 
 if __name__ == '__main__':

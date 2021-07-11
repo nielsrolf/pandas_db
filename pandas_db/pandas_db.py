@@ -4,6 +4,7 @@ from uuid import uuid4
 import datetime as dt
 from contextlib import contextmanager
 import shutil
+import pathlib
 
 
 DEFAULT_PANDAS_DB_PATH = os.environ.get("PANDAS_DB_PATH")
@@ -16,15 +17,27 @@ def maybe_float(v):
         return v
 
 
+def modification_time(filepath):
+    fname = pathlib.Path(filepath)
+    return dt.datetime.fromtimestamp(fname.stat().st_mtime)
+
+
 class PandasDB():
     def __init__(self, path=None, context=None):
         self.path = path or DEFAULT_PANDAS_DB_PATH
         self.context = context or {}
+        self._df = None
+        self._loaded = None
     
     def get_df(self):
+        csv_path = os.path.join(self.path, ".local_db.csv")
+        if self._df is not None:
+            if self._loaded == modification_time(csv_path):
+                return self._df
         try:
-            df = pd.read_csv(os.path.join(self.path, ".local_db.csv"), index_col=0)
-            return df
+            self._df = pd.read_csv(csv_path, index_col=0)
+            self._loaded = modification_time(csv_path)
+            return self._df
         except FileNotFoundError:
             return pd.DataFrame(colums=['pandas_db.created'])
     
@@ -47,12 +60,14 @@ class PandasDB():
         return df[metrics]
 
     def save(self, **data):
+        print("pandas_db.save", data)
         df = self.get_df()
         data['pandas_db.created'] = dt.datetime.now()
         data.update(self.context)
         data = {k: [maybe_float(v)] for k, v in data.items()}
         df = pd.concat([df, pd.DataFrame(data, index=[uuid4()])], axis=0)
         df.to_csv(os.path.join(self.path, ".local_db.csv"))
+        print("pandas_db.save: done")
     
     @contextmanager
     def set_context(self, **data):
@@ -73,6 +88,20 @@ class PandasDB():
         dest = os.path.join(dest_dir, filename)
         shutil.copy(filepath, dest)
         self.save(file=f"{file_id}/{filename}", filename=filename, **data)
+    
+    def mount_dir(self, dir_path, **data):
+        pass
+
+    def save_dir(self, dir_path, **data):
+        pass
+    
+    @contextmanager
+    def new_dir(self, **data):
+        pass
+
+    def new_file(self, **data):
+        pass
+
 
 
 
