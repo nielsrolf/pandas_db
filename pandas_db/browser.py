@@ -3,11 +3,11 @@ from dash.dependencies import Input, Output
 import dash_table
 import dash_html_components as html
 import pandas as pd
-from pandas_db import pandas_db, maybe_float
+from pandas_db import pandas_db, maybe_float, DEFAULT_PANDAS_DB_PATH
 import numpy as np
 from dash_extensions import Keyboard
-
-import json
+import os
+import base64
 
 
 
@@ -62,6 +62,20 @@ main_table = dash_table.DataTable(
     filter_query=''
 )
 
+@app.callback(
+    Output('detail-view', 'children'),
+    Input('table-filtering', 'active_cell'))
+def return_cell_info(active_cell):
+    if STATE.df is None or active_cell is None:
+        return ""
+    row = STATE.df.iloc[active_cell['row']]
+    filepath = os.path.join(DEFAULT_PANDAS_DB_PATH, ".pandas_db_files", row["file"])
+    return get_image(filepath)
+
+
+def get_image(image_filename):
+    img = str(base64.b64encode(open(image_filename, 'rb').read()))[2:-1]
+    return html.Img(src='data:image/png;base64,{}'.format(img))
 
 @app.callback(
     Output('hidden', 'children'),
