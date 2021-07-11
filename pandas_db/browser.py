@@ -65,22 +65,28 @@ main_table = dash_table.DataTable(
 
 @app.callback(
     Output('detail-view', 'children'),
-    Input('table-filtering', 'active_cell'))
-def return_cell_info(active_cell):
+    Input('table-filtering', 'active_cell'),
+    Input('table-filtering', "page_current"),
+    Input('table-filtering', "page_size"),
+    Input('table-filtering', "filter_query"))
+def show_detail_view(active_cell, page_current, page_size, filter):
     if STATE.df is None or active_cell is None:
         return ""
-    row = STATE.df.iloc[active_cell['row']]
+    df = get_current_selection(page_current, page_size, filter)
+    row = df.iloc[active_cell['row']]
     filepath = os.path.join(DEFAULT_PANDAS_DB_PATH, ".pandas_db_files", row["file"])
-    return get_image(filepath)
+    return show_media(filepath)
 
 
-def get_image(media_file):
+def show_media(media_file):
+    print(media_file)
     data = str(base64.b64encode(open(media_file, 'rb').read()))[2:-1]
     if media_file.endswith(".png"):
         return html.Img(src='data:image/png;base64,{}'.format(data), style={"height": "100%", "width": "auto"})
     if media_file.endswith(".wav"):
         return html.Audio(src='data:audio/wav;base64,{}'.format(data), controls=True)
     return None
+
 
 @app.callback(
     Output('hidden', 'children'),
@@ -151,6 +157,10 @@ def split_filter_part(filter_part):
     Input('table-filtering', "page_size"),
     Input('table-filtering', "filter_query"))
 def update_table(page_current,page_size, filter):
+    return get_current_selection(page_current,page_size, filter).to_dict('records')
+
+
+def get_current_selection(page_current,page_size, filter):
     print(filter)
     filtering_expressions = filter.split(' && ')
     dff = STATE.df
@@ -168,7 +178,7 @@ def update_table(page_current,page_size, filter):
             dff = dff.loc[dff[col_name].str.startswith(filter_value)]
     return dff.iloc[
         page_current*page_size:(page_current+ 1)*page_size
-    ].to_dict('records')
+    ]
 
 
 detail_view = html.Div(id='detail-view', style={"height": "400px"})
