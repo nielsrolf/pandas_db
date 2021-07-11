@@ -1,3 +1,4 @@
+from numpy.lib.type_check import imag
 import dash
 from dash.dependencies import Input, Output
 import dash_table
@@ -73,9 +74,13 @@ def return_cell_info(active_cell):
     return get_image(filepath)
 
 
-def get_image(image_filename):
-    img = str(base64.b64encode(open(image_filename, 'rb').read()))[2:-1]
-    return html.Img(src='data:image/png;base64,{}'.format(img))
+def get_image(media_file):
+    data = str(base64.b64encode(open(media_file, 'rb').read()))[2:-1]
+    if media_file.endswith(".png"):
+        return html.Img(src='data:image/png;base64,{}'.format(data), style={"height": "100%", "width": "auto"})
+    if media_file.endswith(".wav"):
+        return html.Audio(src='data:audio/wav;base64,{}'.format(data), controls=True)
+    return None
 
 @app.callback(
     Output('hidden', 'children'),
@@ -166,7 +171,7 @@ def update_table(page_current,page_size, filter):
     ].to_dict('records')
 
 
-detail_view = html.Div(id='detail-view')
+detail_view = html.Div(id='detail-view', style={"height": "400px"})
 hidden_view = html.Div(id='hidden')
 
 app.layout = html.Div([
