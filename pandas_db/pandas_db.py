@@ -26,7 +26,7 @@ class PandasDB():
             df = pd.read_csv(os.path.join(self.path, ".local_db.csv"), index_col=0)
             return df
         except FileNotFoundError:
-            return pd.DataFrame()
+            return pd.DataFrame(colums=['pandas_db.created'])
     
     def latest(self, keys=None, metrics=None):
         assert not (keys is None and metrics is None), "Specify either keys or metrics"
