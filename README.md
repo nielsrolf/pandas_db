@@ -1,6 +1,19 @@
 # pandas-db
 
-A simpler and minified version of MLFlow model tracking.
+A minimalistic local (meta) data store.
+- save any tabular data, like model metrics. Instead of a metrics UI, you get to use jupyter to plot anything
+- save artifacts with metadata, like model artifacts or training data
+- browse artifacts in the UI
+
+# Setup
+```sh
+# Install dependencies
+pip install git+git://github.com/nielsrolf/pandas_db
+```
+Add `export PANDAS_DB_PATH=some/path` to your `.bashrc`.
+To use the UI, define a `views.json` (for an example, see `pandas_db/views.json`) and save this file to `$PANDAS_DB_PATH/.pandas_db_views.json`.
+
+# Saving Meta Data
 
 ```python
 from pandas_db import PandasDB
@@ -27,10 +40,15 @@ with pandas_db.set_context(foo="foo"):
 # pandas_db.save(foo="foo", bar="bar")
 ```
 
-For this, you have to put `export PANDAS_DB_PATH="/some/path" ` in your bashrc.
+# Saving artifacts
+```python
+from pandas_db import pandas_db
 
-## Setup
-```sh
-# Install dependencies
-pip install git+git://github.com/nielsrolf/pandas_db
+with pandas_db.set_context(foo="foo"):
+    pandas_db.save_artifact("my_file.png") 
+    #  file is saved, and meta data from context is also saved like any tabular data
+
 ```
+
+# Using the UI
+If you defined your `views.json` as in the example, you can start the UI via `pandasdb {files/metrics}`.
