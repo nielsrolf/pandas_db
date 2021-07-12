@@ -32,6 +32,13 @@ def cols_maybe_float(df):
     return df
 
 
+def float_or_zero(v):
+    if isinstance(v, float):
+        return v
+    else:
+        return 0.
+
+
 class State():
     def __init__(self, keys, columns=None):
         self.keys = keys
@@ -55,16 +62,29 @@ class State():
 
 def get_app(keys, columns=None):
     STATE = State(keys, columns)
-    app = dash.Dash(__name__)
+    external_stylesheets = ['https://raw.githubusercontent.com/plotly/dash-app-stylesheets/master/dash-diamonds-explorer.css']
+    app = dash.Dash(__name__, external_stylesheets=external_stylesheets, title="Pandas DB")
     main_table = dash_table.DataTable(
         id='table-filtering',
         columns=[
             {"name": i, "id": i, "hideable": True, "editable": i not in STATE.keys} for i in STATE.df.columns
         ],
+        style_cell={'padding': '5px', 'min-width': "50px"},
+        style_header={
+            'backgroundColor': 'white',
+            'fontWeight': 'bold'
+        },
+        style_cell_conditional=[
+            {
+                'if': {'column_id': c},
+                'textAlign': 'left'
+            } for c in STATE.keys
+        ],
+    fixed_rows={'headers': True},
+        style_table={"height": "100%"},
         page_current=0,
         page_size=PAGE_SIZE,
         page_action='custom',
-
         filter_action='custom',
         filter_query=''
     )
@@ -80,7 +100,6 @@ def get_app(keys, columns=None):
             return ""
         df = get_current_selection(page_current, page_size, filter)
         row = df.iloc[active_cell['row']]
-        print(row)
         try:
             filepath = os.path.join(DEFAULT_PANDAS_DB_PATH, ".pandas_db_files", row["file"])
             return show_media(filepath)
@@ -89,7 +108,6 @@ def get_app(keys, columns=None):
 
 
     def show_media(media_file):
-        print(media_file)
         data = str(base64.b64encode(open(media_file, 'rb').read()))[2:-1]
         if media_file.endswith(".png"):
             return html.Img(src='data:image/png;base64,{}'.format(data), style={"height": "320px", "width": "auto"})
@@ -175,23 +193,27 @@ def get_app(keys, columns=None):
         print(filter)
         filtering_expressions = filter.split(' && ')
         dff = STATE.df
+        dff_original = dff
         for filter_part in filtering_expressions:
             col_name, operator, filter_value = split_filter_part(filter_part)
-
             if operator in ('eq', 'ne', 'lt', 'le', 'gt', 'ge'):
                 # these operators match pandas series operator method names
-                dff = dff.loc[getattr(dff[col_name], operator)(filter_value)]
+                dff = dff.loc[(dff[col_name].apply(lambda i: isinstance(i, float))) & 
+                              (getattr(dff[col_name].apply(float_or_zero), operator))(filter_value)]
             elif operator == 'contains':
-                dff = dff.loc[dff[col_name].str.contains(filter_value)]
+                dff = dff.loc[dff[col_name].astype(str).str.contains(str(filter_value))]
             elif operator == 'datestartswith':
                 # this is a simplification of the front-end filtering logic,
                 # only works with complete fields in standard format
-                dff = dff.loc[dff[col_name].str.startswith(filter_value)]
-        return dff.iloc[
+                dff = dff.loc[dff[col_name].astype(str).str.startswith(filter_value)]
+        if len(dff) == 0:
+            dff = dff_original
+        dff = dff.iloc[
             page_current*page_size:(page_current+ 1)*page_size
         ]
+        return dff
 
-    table_view = html.Div(main_table, id='table-view', style={"position": "absolute", "padding-bottom": "300px"})
+    table_view = html.Div(main_table, id='table-view', style={"position": "absolute", "padding-bottom": "320px"})
     detail_view = html.Div(id='detail-view', style={"position": "fixed", "bottom": "0", "width": "100%", "background-color": "#2cb2cb", "max-height": "300px", "padding": "10px"})
     hidden_view = html.Div(id='hidden')
 
