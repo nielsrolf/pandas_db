@@ -1,0 +1,11 @@
+
+{
+    "files": {
+        "keys": ["file"],
+        // "columns": ["model", "file", "audio_file", "plot_type", "s", "audio_type", "melody", "timbre", "reconstruction_loss", "data_name", "sample_idx"]
+    },
+    "metrics": {
+        "keys": ["model", "dataset", "audio_file"],
+        "columns": ["unskewed_spectral_loss", "spectral_loss", "reconstruction_loss", "cycle_reconstruction_loss"]
+    }
+}
