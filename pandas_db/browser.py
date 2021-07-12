@@ -39,10 +39,62 @@ def float_or_zero(v):
         return 0.
 
 
+operators = [['ge ', '>='],
+            ['le ', '<='],
+            ['lt ', '<'],
+            ['gt ', '>'],
+            ['ne ', '!='],
+            ['eq ', '='],
+            ['contains '],
+            ['datestartswith ']]
+
+
+def split_filter_part(filter_part):
+    for operator_type in operators:
+        for operator in operator_type:
+            if operator in filter_part:
+                name_part, value_part = filter_part.split(operator, 1)
+                name = name_part[name_part.find('{') + 1: name_part.rfind('}')]
+
+                value_part = value_part.strip()
+                v0 = value_part[0]
+                if (v0 == value_part[-1] and v0 in ("'", '"', '`')):
+                    value = value_part[1: -1].replace('\\' + v0, v0)
+                else:
+                    try:
+                        value = float(value_part)
+                    except ValueError:
+                        value = value_part
+
+                # word operators need spaces after them in the filter string,
+                # but we don't want these later
+                return name, operator_type[0].strip(), value
+
+    return [None] * 3
+
+
+def apply_filters(dff, filter):
+    filtering_expressions = filter.split(' && ')
+    for filter_part in filtering_expressions:
+        col_name, operator, filter_value = split_filter_part(filter_part)
+        if operator in ('eq', 'ne', 'lt', 'le', 'gt', 'ge'):
+            # these operators match pandas series operator method names
+            dff = dff.loc[(dff[col_name].apply(lambda i: isinstance(i, float))) & 
+                            (getattr(dff[col_name].apply(float_or_zero), operator))(filter_value)]
+        elif operator == 'contains':
+            dff = dff.loc[dff[col_name].astype(str).str.contains(str(filter_value))]
+        elif operator == 'datestartswith':
+            # this is a simplification of the front-end filtering logic,
+            # only works with complete fields in standard format
+            dff = dff.loc[dff[col_name].astype(str).str.startswith(filter_value)]
+    return dff
+
+
 class State():
-    def __init__(self, keys, columns=None):
+    def __init__(self, keys, columns=None, file_id=None):
         self.keys = keys
         self.columns = columns
+        self.file_id = file_id
         self.df = None
         self.fetch()
     
@@ -57,11 +109,12 @@ class State():
         df = df[self.keys + columns]
         df = drop_constant_columns(df)
         self.df = cols_maybe_float(df)
-        print("end fetch")
+        print("fetched", len(self.df))
 
 
-def get_app(keys, columns=None):
-    STATE = State(keys, columns)
+def get_app(keys, columns=None, file_id=None):
+    print("file_id", file_id)
+    STATE = State(keys, columns, file_id)
     external_stylesheets = ['https://raw.githubusercontent.com/plotly/dash-app-stylesheets/master/dash-diamonds-explorer.css']
     app = dash.Dash(__name__, external_stylesheets=external_stylesheets, title="Pandas DB")
     main_table = dash_table.DataTable(
@@ -74,16 +127,35 @@ def get_app(keys, columns=None):
             'backgroundColor': 'white',
             'fontWeight': 'bold'
         },
+        style_as_list_view=True,
         style_cell_conditional=[
             {
                 'if': {'column_id': c},
                 'textAlign': 'left'
             } for c in STATE.keys
         ],
-    fixed_rows={'headers': True},
+        # fixed_rows={'headers': True},
         style_table={"height": "100%"},
         page_current=0,
         page_size=PAGE_SIZE,
+        page_action='custom',
+        filter_action='custom',
+        filter_query=''
+    )
+    print(STATE.file_id)
+    file_filter = dash_table.DataTable(
+        id='file-filtering',
+        columns=[
+            {"name": i, "id": i} for i in (STATE.file_id if STATE.file_id is not None else STATE.keys)
+        ],
+        style_cell={'padding': '5px', 'min-width': "50px"},
+        style_header={
+            'backgroundColor': 'white',
+            'fontWeight': 'bold'
+        },
+        style_as_list_view=True,
+        page_current=0,
+        page_size=1,
         page_action='custom',
         filter_action='custom',
         filter_query=''
@@ -94,27 +166,66 @@ def get_app(keys, columns=None):
         Input('table-filtering', 'active_cell'),
         Input('table-filtering', "page_current"),
         Input('table-filtering', "page_size"),
-        Input('table-filtering', "filter_query"))
-    def show_detail_view(active_cell, page_current, page_size, filter):
+        Input('table-filtering', "filter_query"),
+        Input('file-filtering', "filter_query"))
+    def show_detail_view(active_cell, page_current, page_size, filter, file_filter):
         if STATE.df is None or active_cell is None:
             return ""
         df = get_current_selection(page_current, page_size, filter)
         row = df.iloc[active_cell['row']]
-        try:
-            filepath = os.path.join(DEFAULT_PANDAS_DB_PATH, ".pandas_db_files", row["file"])
-            return show_media(filepath)
-        except KeyError:
-            pass
+        # Find all media files connected to the key of the row
+        df = pandas_db.get_df().fillna("?")
+        # df = get_current_selection(page_current=0, page_size=10000, filter=filter, dff=df)
+        df = apply_filters(df, file_filter)
+        def latest_entry(values):
+            values = values.dropna()
+            if len(values) == 0:
+                return None
+            return values[-1]
+        file_id = None
+        if STATE.file_id:
+            file_id = STATE.file_id
+            df = df.sort_values("pandas_db.created")\
+                    .groupby(by=file_id)\
+                    .aggregate(latest_entry)\
+                    .reset_index()
+        sep = "!!!"
+        files = df.groupby(by=STATE.keys).aggregate({"file": lambda i: sep.join(i.unique())}).reset_index()
+        selected = pd.merge(
+            pd.DataFrame(row).T[STATE.keys],
+            files, how='left', on=STATE.keys).fillna("")
+        if file_id is None:
+            file_id = selected.columns
+        selected = selected['file'].iloc[0].split(sep)
+        print(selected)
+        medias = []
+        for rel_path in selected[:20]:
+            try:
+                file_info = df.loc[df['file']==rel_path].iloc[0]
+                filepath = os.path.join(DEFAULT_PANDAS_DB_PATH, ".pandas_db_files", rel_path)
+                medias += [show_media(filepath, file_info)]
+            except (KeyError, FileNotFoundError):
+                pass
+        return medias
 
 
-    def show_media(media_file):
+    def show_media(media_file, file_info):
         data = str(base64.b64encode(open(media_file, 'rb').read()))[2:-1]
+        media = None
         if media_file.endswith(".png"):
-            return html.Img(src='data:image/png;base64,{}'.format(data), style={"height": "320px", "width": "auto"})
+            media = html.Img(src='data:image/png;base64,{}'.format(data), style={"height": "300px", "width": "auto"})
         if media_file.endswith(".wav"):
-            return html.Div(html.Audio(src='data:audio/wav;base64,{}'.format(data), controls=True),
-                            style={"position": "absolute;", "bottom": "0px;"})
-        return None
+            media = html.Audio(src='data:audio/wav;base64,{}'.format(data), controls=True)
+        file_id = STATE.file_id if STATE.file_id is not None else file_info.keys()
+        info = dash_table.DataTable(
+            columns=[
+                {"name": i, "id": i} for i in file_id
+            ],
+            data=[file_info.to_dict()],
+            style_cell={'padding': '5px', 'min-width': "50px"}
+        )
+        return html.Div(
+            [media, info])
 
 
     @app.callback(
@@ -145,41 +256,6 @@ def get_app(keys, columns=None):
         STATE.fetch()
         return None
 
-
-    operators = [['ge ', '>='],
-                ['le ', '<='],
-                ['lt ', '<'],
-                ['gt ', '>'],
-                ['ne ', '!='],
-                ['eq ', '='],
-                ['contains '],
-                ['datestartswith ']]
-
-
-    def split_filter_part(filter_part):
-        for operator_type in operators:
-            for operator in operator_type:
-                if operator in filter_part:
-                    name_part, value_part = filter_part.split(operator, 1)
-                    name = name_part[name_part.find('{') + 1: name_part.rfind('}')]
-
-                    value_part = value_part.strip()
-                    v0 = value_part[0]
-                    if (v0 == value_part[-1] and v0 in ("'", '"', '`')):
-                        value = value_part[1: -1].replace('\\' + v0, v0)
-                    else:
-                        try:
-                            value = float(value_part)
-                        except ValueError:
-                            value = value_part
-
-                    # word operators need spaces after them in the filter string,
-                    # but we don't want these later
-                    return name, operator_type[0].strip(), value
-
-        return [None] * 3
-
-
     @app.callback(
         Output('table-filtering', 'data'),
         Input('table-filtering', "page_current"),
@@ -187,34 +263,30 @@ def get_app(keys, columns=None):
         Input('table-filtering', "filter_query"))
     def update_table(page_current,page_size, filter):
         return get_current_selection(page_current,page_size, filter).to_dict('records')
-
-
-    def get_current_selection(page_current,page_size, filter):
+    
+    def get_current_selection(page_current, page_size, filter, dff=None):
         print(filter)
-        filtering_expressions = filter.split(' && ')
-        dff = STATE.df
+        dff = dff if dff is not None else STATE.df
         dff_original = dff
-        for filter_part in filtering_expressions:
-            col_name, operator, filter_value = split_filter_part(filter_part)
-            if operator in ('eq', 'ne', 'lt', 'le', 'gt', 'ge'):
-                # these operators match pandas series operator method names
-                dff = dff.loc[(dff[col_name].apply(lambda i: isinstance(i, float))) & 
-                              (getattr(dff[col_name].apply(float_or_zero), operator))(filter_value)]
-            elif operator == 'contains':
-                dff = dff.loc[dff[col_name].astype(str).str.contains(str(filter_value))]
-            elif operator == 'datestartswith':
-                # this is a simplification of the front-end filtering logic,
-                # only works with complete fields in standard format
-                dff = dff.loc[dff[col_name].astype(str).str.startswith(filter_value)]
+        dff = apply_filters(dff, filter)
         if len(dff) == 0:
             dff = dff_original
         dff = dff.iloc[
             page_current*page_size:(page_current+ 1)*page_size
         ]
+        print(len(dff))
         return dff
 
-    table_view = html.Div(main_table, id='table-view', style={"position": "absolute", "padding-bottom": "320px"})
-    detail_view = html.Div(id='detail-view', style={"position": "fixed", "bottom": "0", "width": "100%", "background-color": "#2cb2cb", "max-height": "300px", "padding": "10px"})
+
+    table_view = html.Div(main_table, id='table-view', style={"position": "absolute", "padding-bottom": "500px"})
+    detail_view = html.Div([file_filter, html.Div(id='detail-view')], style={
+                "position":
+                "fixed", "bottom": "0",
+                "width": "100%",
+                "background-color": "#2cb2cb",
+                "max-height": "500px",
+                "padding": "10px",
+                "overflow": "scroll"})
     hidden_view = html.Div(id='hidden')
 
     app.layout = html.Div([
@@ -232,7 +304,7 @@ def main(view_name):
     with open(os.path.join(os.environ['PANDAS_DB_PATH'], ".pandas_db_views.json")) as json_file:
         views = json.load(json_file)
     view = views[view_name]
-    app = get_app(keys=view['keys'], columns=view.get('columns'))
+    app = get_app(keys=view['keys'], columns=view.get('columns'), file_id=view.get('file_id'))
     app.run_server(debug=True)
 
 
