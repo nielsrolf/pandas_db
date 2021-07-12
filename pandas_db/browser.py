@@ -74,6 +74,7 @@ def show_detail_view(active_cell, page_current, page_size, filter):
         return ""
     df = get_current_selection(page_current, page_size, filter)
     row = df.iloc[active_cell['row']]
+    print(row)
     filepath = os.path.join(DEFAULT_PANDAS_DB_PATH, ".pandas_db_files", row["file"])
     return show_media(filepath)
 
@@ -82,9 +83,10 @@ def show_media(media_file):
     print(media_file)
     data = str(base64.b64encode(open(media_file, 'rb').read()))[2:-1]
     if media_file.endswith(".png"):
-        return html.Img(src='data:image/png;base64,{}'.format(data), style={"height": "100%", "width": "auto"})
+        return html.Img(src='data:image/png;base64,{}'.format(data), style={"height": "300px", "width": "auto"})
     if media_file.endswith(".wav"):
-        return html.Audio(src='data:audio/wav;base64,{}'.format(data), controls=True)
+        return html.Div(html.Audio(src='data:audio/wav;base64,{}'.format(data), controls=True),
+                          style={"position": "absolute;", "bottom": "0px;"})
     return None
 
 
@@ -180,13 +182,13 @@ def get_current_selection(page_current,page_size, filter):
         page_current*page_size:(page_current+ 1)*page_size
     ]
 
-
-detail_view = html.Div(id='detail-view', style={"height": "400px"})
+table_view = html.Div(main_table, id='table-view', style={"position": "absolute"})
+detail_view = html.Div(id='detail-view', style={"position": "fixed", "bottom": "0", "width": "100%", "background-color": "#2cb2cb", "max-height": "300px", "padding": "10px"})
 hidden_view = html.Div(id='hidden')
 
 app.layout = html.Div([
+    table_view,
     detail_view,
-    main_table,
     hidden_view,
     Keyboard(id="keyboard")
 ])
