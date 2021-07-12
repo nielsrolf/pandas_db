@@ -7,12 +7,9 @@
         "keys": ["model"],
         "file_id": ["model", "audio_file", "dataset", "sample_idx", "audio_type", "plot_type"]
     },
-    "audio": {
-        "keys": ["model", "audio_file"],
-        "columns": ["unskewed_spectral_loss", "spectral_loss", "reconstruction_loss", "cycle_reconstruction_loss"]
-    },
     "metrics": {
         "keys": ["model", "dataset", "audio_file"],
-        "columns": ["unskewed_spectral_loss", "spectral_loss", "reconstruction_loss", "cycle_reconstruction_loss"]
+        "file_id": ["model", "audio_file", "dataset", "tag", "sample_idx", "audio_type", "plot_type", "s"],
+        "columns": ["unskewed_spectral_loss", "spectral_loss", "reconstruction_loss", "cycle_reconstruction_loss", "tag"]
     }
 }

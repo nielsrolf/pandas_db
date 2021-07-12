@@ -143,10 +143,12 @@ def get_app(keys, columns=None, file_id=None):
         filter_query=''
     )
     print(STATE.file_id)
+    file_filter = (STATE.file_id if STATE.file_id is not None else STATE.columns)
+    file_filter = [i for i in file_id if not i in STATE.keys]
     file_filter = dash_table.DataTable(
         id='file-filtering',
         columns=[
-            {"name": i, "id": i} for i in (STATE.file_id if STATE.file_id is not None else STATE.keys)
+            {"name": i, "id": i} for i in file_filter
         ],
         style_cell={'padding': '5px', 'min-width': "50px"},
         style_header={
@@ -204,7 +206,7 @@ def get_app(keys, columns=None, file_id=None):
                 file_info = df.loc[df['file']==rel_path].iloc[0]
                 filepath = os.path.join(DEFAULT_PANDAS_DB_PATH, ".pandas_db_files", rel_path)
                 medias += [show_media(filepath, file_info)]
-            except (KeyError, FileNotFoundError):
+            except (KeyError, FileNotFoundError, IndexError):
                 pass
         return medias
 
@@ -217,15 +219,20 @@ def get_app(keys, columns=None, file_id=None):
         if media_file.endswith(".wav"):
             media = html.Audio(src='data:audio/wav;base64,{}'.format(data), controls=True)
         file_id = STATE.file_id if STATE.file_id is not None else file_info.keys()
+        file_info = pd.DataFrame(file_info).T[file_id].T.reset_index()
+        rename_cols = dict(zip(file_info.columns, ["key", "value"]))
+        file_info = file_info.rename(columns=rename_cols)
         info = dash_table.DataTable(
-            columns=[
-                {"name": i, "id": i} for i in file_id
-            ],
-            data=[file_info.to_dict()],
-            style_cell={'padding': '5px', 'min-width': "50px"}
+            columns = [{"name": "", "id": "key"}, {"name": "", "id": "value"}],
+            data=file_info.to_dict('records'),
+            style_cell={'padding': '5px', 'width': "100px"},
+            style_header = {'display': 'none'}
         )
+        # return media
         return html.Div(
-            [media, info])
+            [media, info], style={
+                "max-width": "300px"
+            })
 
 
     @app.callback(
