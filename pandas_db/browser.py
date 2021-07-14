@@ -90,34 +90,12 @@ def apply_filters(dff, filter):
     return dff
 
 
-class State():
-    def __init__(self, keys, columns=None, file_id=None):
-        self.keys = keys
-        self.columns = columns
-        self.file_id = file_id
-        self.df = None
-        self.fetch()
-    
-    def fetch(self):
-        print("fetch")
-        df = pandas_db.latest(keys=self.keys).reset_index()
-        if self.columns is not None:
-            columns = self.columns
-        else:
-            columns = df.columns
-        columns = [c for c in columns if not c in self.keys]
-        df = df[self.keys + columns]
-        df = drop_constant_columns(df)
-        self.df = cols_maybe_float(df)
-        print("fetched", len(self.df))
+def get_selection_view(STATE):
+    pass
 
 
-def get_app(keys, columns=None, file_id=None):
-    print("file_id", file_id)
-    STATE = State(keys, columns, file_id)
-    external_stylesheets = ['https://raw.githubusercontent.com/plotly/dash-app-stylesheets/master/dash-diamonds-explorer.css']
-    app = dash.Dash(__name__, external_stylesheets=external_stylesheets, title="Pandas DB")
-    main_table = dash_table.DataTable(
+def get_main_table(STATE):
+    return dash_table.DataTable(
         id='table-filtering',
         columns=[
             {"name": i, "id": i, "hideable": True, "editable": i not in STATE.keys} for i in STATE.df.columns
@@ -142,9 +120,11 @@ def get_app(keys, columns=None, file_id=None):
         filter_action='custom',
         filter_query=''
     )
-    print(STATE.file_id)
+
+
+def get_file_filter(STATE):
     file_filter = (STATE.file_id if STATE.file_id is not None else STATE.columns)
-    file_filter = [i for i in file_id if not i in STATE.keys]
+    file_filter = [i for i in file_filter if not i in STATE.keys]
     file_filter = dash_table.DataTable(
         id='file-filtering',
         columns=[
@@ -162,6 +142,42 @@ def get_app(keys, columns=None, file_id=None):
         filter_action='custom',
         filter_query=''
     )
+    return html.Div([file_filter, html.Div(style={"content": '""', "clear": "both", "display": "table"})])
+
+class State():
+    def __init__(self, keys, columns=None, file_id=None):
+        self.keys = keys
+        self.columns = columns
+        self.file_id = file_id
+        self.df = None
+        self.fetch()
+    
+    def fetch(self):
+        print("fetch")
+        df = pandas_db.latest(keys=self.keys).reset_index()
+        if self.columns is not None:
+            columns = self.columns
+        else:
+            columns = df.columns
+        columns = [c for c in columns if not c in self.keys]
+        df = df[self.keys + columns]
+        df = drop_constant_columns(df)
+        self.df = cols_maybe_float(df)
+        print("fetched", len(self.df))
+
+
+def get_app(keys, columns=None, file_id=None):
+    print("file_id", file_id)
+
+    STATE = State(keys, columns, file_id)
+    external_stylesheets = ['https://raw.githubusercontent.com/plotly/dash-app-stylesheets/master/dash-diamonds-explorer.css']
+    app = dash.Dash(__name__, external_stylesheets=external_stylesheets, title="Pandas DB")
+    
+    selection_view = get_selection_view(STATE)
+    main_table = get_main_table(STATE)
+    file_filter = get_file_filter(STATE)
+    
+    
 
     @app.callback(
         Output('detail-view', 'children'),
@@ -235,10 +251,17 @@ def get_app(keys, columns=None, file_id=None):
             style_header = {'display': 'none'}
         )
         # return media
-        return html.Div(
-            [media, info], style={
-                "max-width": "300px"
-            })
+        return html.Div([html.Div(info, style={"flex": "50%"}),
+                         html.Div(media, style={
+                                "flex": "50%",
+                                "height": "300px",
+                                "display": "flex",
+                                "align-items": "center",
+                                "padding": "5px"})],
+                         style={
+                             "display": "flex", 
+                             "background-color": "rgba(0.9, 0.9, 0.9, 0.5)", 
+                             "margin": "5px"})
 
 
     @app.callback(
@@ -323,4 +346,3 @@ def main(view_name):
 
 if __name__ == '__main__':
     main()
-
