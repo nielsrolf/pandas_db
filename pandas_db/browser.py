@@ -179,6 +179,9 @@ def get_app(keys, columns=None, file_id=None):
         df = pandas_db.get_df().fillna("?")
         # df = get_current_selection(page_current=0, page_size=10000, filter=filter, dff=df)
         df = apply_filters(df, file_filter)
+        df = apply_filters(df, filter)
+        if len(df) == 0:
+            return []
         def latest_entry(values):
             values = values.dropna()
             if len(values) == 0:
@@ -196,12 +199,15 @@ def get_app(keys, columns=None, file_id=None):
         selected = pd.merge(
             pd.DataFrame(row).T[STATE.keys],
             files, how='left', on=STATE.keys).fillna("")
+        selected = selected.sort_values(STATE.keys)
         if file_id is None:
             file_id = selected.columns
+        if len(selected) == 0:
+            return []
         selected = selected['file'].iloc[0].split(sep)
         print(selected)
         medias = []
-        for rel_path in selected[:20]:
+        for rel_path in selected[:5]:
             try:
                 file_info = df.loc[df['file']==rel_path].iloc[0]
                 filepath = os.path.join(DEFAULT_PANDAS_DB_PATH, ".pandas_db_files", rel_path)

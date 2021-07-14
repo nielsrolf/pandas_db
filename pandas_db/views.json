@@ -5,7 +5,7 @@
     },
     "model_files": {
         "keys": ["model"],
-        "file_id": ["model", "audio_file", "dataset", "sample_idx", "audio_type", "plot_type"]
+        "file_id": ["model", "audio_file", "dataset", "sample_idx", "audio_type", "plot_type", "timbre", "melody"]
     },
     "metrics": {
         "keys": ["model", "dataset", "audio_file"],
