@@ -43,7 +43,7 @@ class PandasDB():
     
     def latest(self, keys=None, metrics=None):
         assert not (keys is None and metrics is None), "Specify either keys or metrics"
-        df = self.get_df().fillna("?")
+        df = self.get_df()
         cols = df.columns
         if keys is None:
             keys = [c for c in cols if not c in metrics and c != "pandas_db.created"]
@@ -53,8 +53,9 @@ class PandasDB():
                 return None
             return values[-1]
         df = df.sort_values("pandas_db.created")\
-                 .groupby(keys)\
-                 .aggregate(latest_entry)
+                .groupby(keys)\
+                .aggregate(latest_entry)\
+                .fillna("?")
         if metrics is None:
             return df
         return df[metrics]

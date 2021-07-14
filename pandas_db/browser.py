@@ -136,9 +136,6 @@ def get_file_filter(STATE):
             'fontWeight': 'bold'
         },
         style_as_list_view=True,
-        page_current=0,
-        page_size=1,
-        page_action='custom',
         filter_action='custom',
         filter_query=''
     )
@@ -261,7 +258,7 @@ def get_app(keys, columns=None, file_id=None):
                          style={
                              "display": "flex", 
                              "background-color": "rgba(0.9, 0.9, 0.9, 0.5)", 
-                             "margin": "5px"})
+                             "margin-bottom": "5px", "margin-top": "5px"})
 
 
     @app.callback(
@@ -315,13 +312,12 @@ def get_app(keys, columns=None, file_id=None):
 
 
     table_view = html.Div(main_table, id='table-view', style={"position": "absolute", "padding-bottom": "500px"})
-    detail_view = html.Div([file_filter, html.Div(id='detail-view')], style={
+    detail_view = html.Div([file_filter, html.Div(id='detail-view')], draggable='true', style={
                 "position":
                 "fixed", "bottom": "0",
                 "width": "100%",
                 "background-color": "#2cb2cb",
                 "max-height": "500px",
-                "padding": "10px",
                 "overflow": "scroll"})
     hidden_view = html.Div(id='hidden')
 
