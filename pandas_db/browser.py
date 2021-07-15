@@ -142,6 +142,11 @@ def get_file_filter(STATE):
     )
     return html.Div([file_filter, html.Div(style={"content": '""', "clear": "both", "display": "table"})])
 
+
+def concat_as_str(values):
+    return "".join([str(i) for i in values])
+
+
 class State():
     def __init__(self, keys, columns=None, file_id=None):
         self.keys = keys
@@ -161,12 +166,12 @@ class State():
         df = df[self.keys + columns]
         df = drop_constant_columns(df)
         self.df = cols_maybe_float(df)
+        self.search = self.df.apply(concat_as_str, axis=1)
+
         print("fetched", len(self.df))
 
 
 def get_app(keys, columns=None, file_id=None):
-    print("file_id", file_id)
-
     STATE = State(keys, columns, file_id)
     external_stylesheets = ['https://raw.githubusercontent.com/plotly/dash-app-stylesheets/master/dash-diamonds-explorer.css']
     app = dash.Dash(__name__, external_stylesheets=external_stylesheets, title="Pandas DB")
@@ -174,52 +179,55 @@ def get_app(keys, columns=None, file_id=None):
     selection_view = get_selection_view(STATE)
     main_table = get_main_table(STATE)
     file_filter = get_file_filter(STATE)
-    
-    
 
     @app.callback(
         Output('detail-view', 'children'),
+        Input('global-search', 'value'),
         Input('table-filtering', 'active_cell'),
         Input('table-filtering', "page_current"),
         Input('table-filtering', "page_size"),
         Input('table-filtering', "filter_query"),
         Input('file-filtering', "filter_query"))
-    def show_detail_view(active_cell, page_current, page_size, filter, file_filter):
-        if STATE.df is None or active_cell is None:
+    def show_detail_view(search_str, active_cell, page_current, page_size, filter, file_filter):
+        if STATE.df is None:
             return ""
-        df = get_current_selection(page_current, page_size, filter)
-        row = df.iloc[active_cell['row']]
-        # Find all media files connected to the key of the row
-        df = pandas_db.get_df().fillna("-")
-        # df = get_current_selection(page_current=0, page_size=10000, filter=filter, dff=df)
-        df = apply_filters(df, file_filter)
-        df = apply_filters(df, filter)
-        if len(df) == 0:
-            return []
-        def latest_entry(values):
-            values = values.dropna()
-            if len(values) == 0:
-                return None
-            return values[-1]
-        file_id = None
-        if STATE.file_id:
-            file_id = STATE.file_id
-            df = df.sort_values("pandas_db.created")\
-                    .groupby(by=file_id)\
-                    .aggregate(latest_entry)\
-                    .reset_index()
-        sep = "!!!"
-        files = df.groupby(by=STATE.keys).aggregate({"file": lambda i: sep.join(i.unique())}).reset_index()
-        selected = pd.merge(
-            pd.DataFrame(row).T[STATE.keys],
-            files, how='left', on=STATE.keys).fillna("")
-        selected = selected.sort_values(STATE.keys)
-        if file_id is None:
-            file_id = selected.columns
-        if len(selected) == 0:
-            return []
-        selected = selected['file'].iloc[0].split(sep)
-        print(selected)
+        df = get_current_selection(search_str, page_current, page_size, filter)
+        if active_cell is not None:
+            row = df.iloc[active_cell['row']]
+            # Find all media files connected to the key of the row
+            df = pandas_db.get_df().fillna("-")
+            df = apply_filters(df, file_filter)
+            df = apply_filters(df, filter)
+            if len(df) == 0:
+                return []
+            def latest_entry(values):
+                values = values.dropna()
+                if len(values) == 0:
+                    return None
+                return values[-1]
+            file_id = None
+            if STATE.file_id:
+                file_id = STATE.file_id
+                df = df.sort_values("pandas_db.created")\
+                        .groupby(by=file_id)\
+                        .aggregate(latest_entry)\
+                        .reset_index()
+            sep = "!!!"
+            files = df.groupby(by=STATE.keys).aggregate({"file": lambda i: sep.join(i.unique())}).reset_index()
+            selected = pd.merge(
+                pd.DataFrame(row).T[STATE.keys],
+                files, how='left', on=STATE.keys).fillna("")
+            selected = selected.sort_values(STATE.keys)
+            if file_id is None:
+                file_id = selected.columns
+            if len(selected) == 0:
+                return []
+            selected = selected['file'].iloc[0].split(sep)
+            print(selected)
+        else:
+            if 'file' not in df.columns:
+                return
+            selected = list(df['file'].unique())
         medias = []
         for rel_path in selected[:20]:
             try:
@@ -292,15 +300,18 @@ def get_app(keys, columns=None, file_id=None):
 
     @app.callback(
         Output('table-filtering', 'data'),
+        Input('global-search', 'value'),
         Input('table-filtering', "page_current"),
         Input('table-filtering', "page_size"),
         Input('table-filtering', "filter_query"))
-    def update_table(page_current,page_size, filter):
-        return get_current_selection(page_current,page_size, filter).to_dict('records')
+    def update_table(search_str, page_current, page_size, filter):
+        return get_current_selection(search_str, page_current,page_size, filter).to_dict('records')
     
-    def get_current_selection(page_current, page_size, filter, dff=None):
+    def get_current_selection(search_str, page_current, page_size, filter):
         print(filter)
-        dff = dff if dff is not None else STATE.df
+        dff = STATE.df
+        if search_str is not None and search_str != "":
+            dff = dff.loc[STATE.search.str.contains(search_str)]
         dff_original = dff
         dff = apply_filters(dff, filter)
         if len(dff) == 0:
@@ -308,12 +319,11 @@ def get_app(keys, columns=None, file_id=None):
         dff = dff.iloc[
             page_current*page_size:(page_current+ 1)*page_size
         ]
-        print(len(dff))
         return dff
 
-
+    search = dcc.Input('global-search', type='text', style={"width": "100%"})
     table_view = html.Div(main_table, id='table-view', style={"position": "absolute", "padding-bottom": "500px"})
-    detail_view = html.Div([file_filter, dcc.Loading(id='detail-view', type="circle")], draggable='true', style={
+    detail_view = html.Div([file_filter, dcc.Loading(id='detail-view', type="circle")], style={
                 "position":
                 "fixed", "bottom": "0",
                 "width": "100%",
@@ -323,6 +333,7 @@ def get_app(keys, columns=None, file_id=None):
     hidden_view = html.Div(id='hidden')
 
     app.layout = html.Div([
+        search,
         table_view,
         detail_view,
         hidden_view,

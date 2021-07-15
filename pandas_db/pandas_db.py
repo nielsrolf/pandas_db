@@ -5,6 +5,7 @@ import datetime as dt
 from contextlib import contextmanager
 import shutil
 import pathlib
+from glob import glob
 
 
 DEFAULT_PANDAS_DB_PATH = os.environ.get("PANDAS_DB_PATH")
@@ -95,19 +96,11 @@ class PandasDB():
         pass
 
     def save_dir(self, dir_path, **data):
-        pass
-    
-    @contextmanager
-    def new_dir(self, **data):
-        pass
-
-    def new_file(self, **data):
-        pass
-
-
-
-
-
+        for file in glob(f"{dir_path}/*"):
+            if os.path.isdir(file):
+                self.save_dir(self, added_from_dir=dir_path, **data)
+            else:
+                self.save_artifact(file, **data)
 
 
 pandas_db = PandasDB()
