@@ -1,6 +1,7 @@
 from numpy.lib.type_check import imag
 import dash
 from dash.dependencies import Input, Output
+import dash_core_components as dcc
 import dash_table
 import dash_html_components as html
 import pandas as pd
@@ -189,7 +190,7 @@ def get_app(keys, columns=None, file_id=None):
         df = get_current_selection(page_current, page_size, filter)
         row = df.iloc[active_cell['row']]
         # Find all media files connected to the key of the row
-        df = pandas_db.get_df().fillna("?")
+        df = pandas_db.get_df().fillna("-")
         # df = get_current_selection(page_current=0, page_size=10000, filter=filter, dff=df)
         df = apply_filters(df, file_filter)
         df = apply_filters(df, filter)
@@ -220,7 +221,7 @@ def get_app(keys, columns=None, file_id=None):
         selected = selected['file'].iloc[0].split(sep)
         print(selected)
         medias = []
-        for rel_path in selected[:5]:
+        for rel_path in selected[:20]:
             try:
                 file_info = df.loc[df['file']==rel_path].iloc[0]
                 filepath = os.path.join(DEFAULT_PANDAS_DB_PATH, ".pandas_db_files", rel_path)
@@ -312,7 +313,7 @@ def get_app(keys, columns=None, file_id=None):
 
 
     table_view = html.Div(main_table, id='table-view', style={"position": "absolute", "padding-bottom": "500px"})
-    detail_view = html.Div([file_filter, html.Div(id='detail-view')], draggable='true', style={
+    detail_view = html.Div([file_filter, dcc.Loading(id='detail-view', type="circle")], draggable='true', style={
                 "position":
                 "fixed", "bottom": "0",
                 "width": "100%",

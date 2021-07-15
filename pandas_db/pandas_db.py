@@ -41,14 +41,15 @@ class PandasDB():
         except FileNotFoundError:
             return pd.DataFrame(colums=['pandas_db.created'])
     
-    def latest(self, keys=None, metrics=None):
+    def latest(self, keys=None, metrics=None, df=None):
         assert not (keys is None and metrics is None), "Specify either keys or metrics"
-        df = self.get_df()
+        na_placeholder = "-"
+        df = df if df is not None else self.get_df().fillna(na_placeholder)
         cols = df.columns
         if keys is None:
             keys = [c for c in cols if not c in metrics and c != "pandas_db.created"]
         def latest_entry(values):
-            values = values.dropna()
+            values = values[values!=na_placeholder]
             if len(values) == 0:
                 return None
             return values[-1]
