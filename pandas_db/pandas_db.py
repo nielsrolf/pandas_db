@@ -19,8 +19,11 @@ def maybe_float(v):
 
 
 def modification_time(filepath):
-    fname = pathlib.Path(filepath)
-    return dt.datetime.fromtimestamp(fname.stat().st_mtime)
+    try:
+        fname = pathlib.Path(filepath)
+        return dt.datetime.fromtimestamp(fname.stat().st_mtime)
+    except FileNotFoundError:
+        return None
 
 
 class PandasDB():
@@ -40,7 +43,7 @@ class PandasDB():
             self._loaded = modification_time(csv_path)
             return self._df
         except FileNotFoundError:
-            return pd.DataFrame(colums=['pandas_db.created'])
+            return pd.DataFrame(columns=['pandas_db.created'])
     
     def latest(self, keys=None, metrics=None, df=None):
         assert not (keys is None and metrics is None), "Specify either keys or metrics"
@@ -64,14 +67,12 @@ class PandasDB():
         return df[metrics]
 
     def save(self, **data):
-        print("pandas_db.save", data)
         df = self.get_df()
         data['pandas_db.created'] = dt.datetime.now()
         data.update(self.context)
         data = {k: [maybe_float(v)] for k, v in data.items()}
         df = pd.concat([df, pd.DataFrame(data, index=[uuid4()])], axis=0)
         df.to_csv(os.path.join(self.path, ".local_db.csv"))
-        print("pandas_db.save: done")
     
     @contextmanager
     def set_context(self, **data):

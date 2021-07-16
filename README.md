@@ -18,16 +18,17 @@ To use the UI, define a `views.json` (for an example, see `pandas_db/views.json`
 ```python
 from pandas_db import PandasDB
 
+pandas_db = PandasDB("~/Downloads") # or: from pandas_db import pandas_db for using the defaukt path
 
-db = PandasDB("some/path")
-db.save(foo="foo", bar="bar")
-db.save(foo="FOO", another_column=42)
-df = db.get_df()
+pandas_db.save(hello="world", example=1, comment="create a new entry")
+pandas_db.save(hello="world", example=2, author="me")
+pandas_db.save(hello="cutie", author="me")
+pandas_db.latest(keys=['hello'])
 ```
-|                                      | foo   | bar   | pandas_db.created              |   another_column |
-|:-------------------------------------|:------|:------|:---------------------------|-----------------:|
-| e2bfa08f-b055-4526-b6a5-e965282e62dc | foo   | bar   | 2021-07-08 17:53:34.087882 |              nan |
-| 8e99fc43-576e-4af6-8f4d-5b6ef33ee029 | FOO   | nan   | 2021-07-08 17:53:34.099407 |               42 |
+| hello   | pandas_db.created          | example   | comment            | author   |
+|:--------|:---------------------------|:----------|:-------------------|:---------|
+| cutie   | 2021-07-16 22:38:28.454400 | ?         | ?                  | me       |
+| world   | 2021-07-16 22:37:45.990464 | 2.0       | create a new entry | me       |
 
 Or use context managers to set default values for rows that are created within the context:
 ```python
