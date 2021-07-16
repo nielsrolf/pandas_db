@@ -3,6 +3,7 @@ from dash.dependencies import Input, Output
 import dash_core_components as dcc
 import dash_table
 import dash_html_components as html
+from jupyter_dash import JupyterDash
 import pandas as pd
 from pandas_db.pandas_db import pandas_db, maybe_float, DEFAULT_PANDAS_DB_PATH
 import numpy as np
@@ -24,11 +25,28 @@ def main(view_name):
     app.run_server(debug=False)
 
 
-def init_app(keys, columns, file_id):
+def jupyter(keys, columns, file_id, mode=None):
+    """Run the browser in a jupyter browser
+    
+    Arguments:
+        keys (List[str]): columns that you want to group information by
+        columns (List[str]): columns that hold metrics or other data,
+            where you want to see the latest info per group
+        file_id (List[str]): columns that together uniquely identify a file.
+            If multiple files exist per group, the latest is displayed
+    """
+    app = init_app(keys=keys, columns=columns, file_id=file_id, jupyter=True)
+    app.run_server()
+
+
+def init_app(keys, columns, file_id, jupyter=False):
     """Initialize the html structure of the app, such that later the
     content can be filled via callback"""
     state = State(keys, columns, file_id)
-    app = dash.Dash(__name__, title="Pandas DB")
+    if jupyter:
+        app = dash.Dash(__name__)
+    else:
+        app = JupyterDash(__name__)
     search = dcc.Input('global-search', type='text', style={"width": "100%", "height": "30px", "position": "fixed", "top": "0px", "z-index": "10", "border": "2px solid #2cb2cb"}, placeholder="Keyword search: enter any number of words you'd like to search")
     
     table_view = dcc.Loading(html.Div(get_main_table(state), id='table-view',

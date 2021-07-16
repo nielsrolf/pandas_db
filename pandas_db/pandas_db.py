@@ -8,7 +8,7 @@ import pathlib
 from glob import glob
 
 
-DEFAULT_PANDAS_DB_PATH = os.environ.get("PANDAS_DB_PATH")
+DEFAULT_PANDAS_DB_PATH = os.environ.get("PANDAS_DB_PATH", ".")
 
 
 def maybe_float(v):
