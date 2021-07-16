@@ -43,7 +43,7 @@ class PandasDB():
             self._loaded = modification_time(csv_path)
             return self._df
         except FileNotFoundError:
-            return pd.DataFrame(columns=['pandas_db.created'])
+            return pd.DataFrame(columns=['pandas_db.created', 'file'])
     
     def latest(self, keys=None, metrics=None, df=None):
         assert not (keys is None and metrics is None), "Specify either keys or metrics"
