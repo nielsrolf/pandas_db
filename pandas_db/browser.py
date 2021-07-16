@@ -47,6 +47,7 @@ def init_app(keys, columns, file_id):
         table_view,
         detail_view,
         file_filter,
+        html.Div(id='hidden'),
         Keyboard(id="keyboard")
     ])
 
@@ -66,8 +67,44 @@ def init_app(keys, columns, file_id):
         Input('table-filtering', 'data'))
     def update_medias_clb(search_str, table_filters, file_filters, active_cell, table_data):
         return update_medias(state, search_str, table_filters, file_filters, active_cell, table_data)
-
+    
+    @app.callback(
+        Output('hidden', 'children'),
+        Input('table-filtering', 'data'),
+        Input("keyboard", "keydown"))
+    def save_clb(rows, key_event):
+        save(state, rows, key_event)
+    
     return app
+
+    
+def save(state, rows, key_event):
+    if key_event is None:
+        return
+    if not (key_event['key'] == "s" and key_event["ctrlKey"] == True):
+        return None
+    edited = pd.DataFrame(rows, columns=state.keys+state.columns)
+    cols = [c for c in edited.columns if c != "pandas_db.created"]
+    edited = cols_maybe_float(edited)[cols]
+    original = pandas_db.latest(keys=state.keys, df=state.get_transactions()).reset_index()
+    original = edited[state.keys].merge(original, on=state.keys)
+    original = original[edited.columns]
+    row_idx, col_idx = np.where(original != edited)
+    for r, c in zip(row_idx, col_idx):
+        row = edited.iloc[r]
+        previous = original.iloc[r]
+        data = {k: row[k] for k in state.keys if row[k] != "-"}
+        if row[edited.columns[c]] not in ["-", "?"]:
+            data[edited.columns[c]] = row[edited.columns[c]]
+        pandas_db.save(**data)
+    state.fetch()
+    return None
+
+def cols_maybe_float(df):
+    df = df.copy()
+    for c in df.columns:
+        df[c] = df[c].apply(maybe_float)
+    return df
 
 
 class State():
@@ -128,7 +165,6 @@ def update_medias(state, search_str, table_filters, file_filters, active_cell, t
     if len(selected) == 0:
         return
     selected = selected['file'].iloc[0].split(sep)
-    print(selected)
     medias = []
     for rel_path in selected[:10]:
         try:
