@@ -36,7 +36,7 @@ def jupyter(keys, columns, file_id, **server_args):
             If multiple files exist per group, the latest is displayed
     """
     app = init_app(keys=keys, columns=columns, file_id=file_id, jupyter=True)
-    app.run(**server_args)
+    app.run_server(**server_args)
 
 
 def init_app(keys, columns, file_id, jupyter=False):
