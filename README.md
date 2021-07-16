@@ -52,3 +52,5 @@ with pandas_db.set_context(foo="foo"):
 
 # Using the UI
 If you defined your `views.json` as in the example, you can start the UI via `pandasdb {files/metrics}`.
+![pandasdb ui](img/ui.png)
+You can edit the data in the top table and save via `ctrl+s`. The filters in the top (search bar + table filters) apply to all displayed data, the filters at the bottom apply to media files only.

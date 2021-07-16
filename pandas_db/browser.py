@@ -22,7 +22,7 @@ def main(view_name):
         views = json.load(json_file)
     view = views[view_name]
     app = init_app(keys=view['keys'], columns=view.get('columns'), file_id=view.get('file_id'))
-    app.run_server(debug=True)
+    app.run_server(debug=False)
 
 
 def init_app(keys, columns, file_id):
@@ -30,10 +30,10 @@ def init_app(keys, columns, file_id):
     content can be filled via callback"""
     state = State(keys, columns, file_id)
     app = dash.Dash(__name__, title="Pandas DB")
-    search = dcc.Input('global-search', type='text', style={"width": "100%", "height": "30px", "position": "fixed", "top": "0px", "z-index": "10"}, placeholder="Keyword search: enter any number of words you'd like to search")
+    search = dcc.Input('global-search', type='text', style={"width": "100%", "height": "30px", "position": "fixed", "top": "0px", "z-index": "10", "border": "2px solid #2cb2cb"}, placeholder="Keyword search: enter any number of words you'd like to search")
     
     table_view = dcc.Loading(html.Div(get_main_table(state), id='table-view',
-                            style={"padding-bottom": "500px"}))
+                            style={"padding-bottom": "500px", "margin-top": "35px"}))
     detail_view = html.Div(dcc.Loading(html.Div(id='medias')), style={
                 "width": "100%",
                 "background-color": "#2cb2cb",
@@ -172,6 +172,7 @@ def update_medias(state, search_str, table_filters, file_filters, active_cell, t
             filepath = os.path.join(DEFAULT_PANDAS_DB_PATH, ".pandas_db_files", rel_path)
             medias += [show_media(state, filepath, file_info)]
         except (KeyError, FileNotFoundError, IndexError) as e:
+            breakpoint()
             print(e)
             pass
     return medias
@@ -244,7 +245,7 @@ def get_file_filter(STATE):
         columns=[
             {"name": i, "id": i} for i in file_filter
         ],
-        style_cell={'padding': '5px', 'min-width': "50px"},
+        style_cell={'padding': '5px', 'min-width': "50px", "text-align": "center"},
         style_header={
             'backgroundColor': 'white',
             'fontWeight': 'bold'
@@ -253,7 +254,7 @@ def get_file_filter(STATE):
         filter_action='custom',
         filter_query=''
     )
-    return html.Div(file_filter, style={"position": "fixed", "bottom": "0", "height": "30", "width": "100%"})
+    return html.Div(html.Div(file_filter, style={"width": "99%", "self-align": "center"}), style={"background-color": "white", "position": "fixed", "bottom": "0", "height": "30", "width": "100%", "padding-": "20px", "overflow": "scroll", "border-top": "1px solid #2cb2cb"})
 
 
 operators = [['ge ', '>='],
