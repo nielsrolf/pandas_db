@@ -36,14 +36,14 @@ def jupyter(keys, columns, file_id, **server_args):
             If multiple files exist per group, the latest is displayed
     """
     app = init_app(keys=keys, columns=columns, file_id=file_id, jupyter=True)
-    return app
+    app.run(**server_args)
 
 
 def init_app(keys, columns, file_id, jupyter=False):
     """Initialize the html structure of the app, such that later the
     content can be filled via callback"""
     state = State(keys, columns, file_id)
-    if jupyter:
+    if not jupyter:
         app = dash.Dash(__name__)
     else:
         app = JupyterDash(__name__)
