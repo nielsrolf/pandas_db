@@ -25,7 +25,7 @@ def main(view_name):
     app.run_server(debug=False)
 
 
-def jupyter(keys, columns, file_id, mode=None):
+def jupyter(keys, columns, file_id, **server_args):
     """Run the browser in a jupyter browser
     
     Arguments:
@@ -36,7 +36,7 @@ def jupyter(keys, columns, file_id, mode=None):
             If multiple files exist per group, the latest is displayed
     """
     app = init_app(keys=keys, columns=columns, file_id=file_id, jupyter=True)
-    app.run_server()
+    app.run_server(**server_args)
 
 
 def init_app(keys, columns, file_id, jupyter=False):
