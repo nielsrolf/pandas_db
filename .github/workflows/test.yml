@@ -20,4 +20,4 @@ jobs:
       - name: Install dependencies with pip
         run: pip install -e .
       - run: pip install pytest
-      - run: pytest test
+      - run: pytest pandas_db
