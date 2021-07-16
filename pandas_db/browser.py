@@ -1,4 +1,3 @@
-from pandas_db.b import apply_filters
 import dash
 from dash.dependencies import Input, Output
 import dash_core_components as dcc
