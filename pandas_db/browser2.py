@@ -83,7 +83,8 @@ def init_app(keys, columns, file_id, jupyter=False):
         [Input('dropdown-{}'.format(key), 'value') for key in dropdown_fields])
     def get_metrics_view(*dropdown_values):
         filtered_df, groupby_keys = filter_df(*dropdown_values)
-        metrics_df = pandas_db.latest(keys=state.keys, metrics=state.columns, df=filtered_df)
+        keys = list(set(state.keys + groupby_keys))
+        metrics_df = pandas_db.latest(keys=keys, metrics=state.columns, df=filtered_df)
         return [get_metric_plot(metrics_df, metric, groupby_keys) for metric in state.columns]
     
     search = dcc.Input('global-search', type='text', style={"width": "100%", "height": "30px", "z-index": "10", "border": "2px solid #2cb2cb"}, placeholder="Keyword search: enter any number of words you'd like to search")
@@ -94,19 +95,22 @@ def init_app(keys, columns, file_id, jupyter=False):
         style={
                 "width": "100%",
                 "background-color": "#2cb2cb",
-                "max-height": "500px",
-                "bottom": "30px",
-                "position": "fixed",
-                "overflow": "scroll"})
+                "bottom": "30px"})
 
     @app.callback(
         Output('medias', 'children'),
         [Input('global-search', 'value')] + \
         [Input('dropdown-{}'.format(key), 'value') for key in dropdown_fields])
     def update_medias_clb(search_str, *dropdown_values):
-        df_files, _ = filter_df(*dropdown_values)
+        df_files, groupby_keys = filter_df(*dropdown_values)
         df_files = state.global_search(search_str, df_files)
-        df_files = pandas_db.latest(keys=state.file_id, df=df_files).reset_index()
+        keys = [key for key in state.file_id if key not in groupby_keys] + groupby_keys
+        print("yo", df_files.columns)
+        try:
+            df_files = df_files.fillna("")
+            df_files = pandas_db.latest(keys=keys, df=df_files).reset_index()
+        except:
+            return None
         return update_medias(state, df_files)
 
     app.layout = dbc.Container([
@@ -118,14 +122,14 @@ def init_app(keys, columns, file_id, jupyter=False):
 
 
 def get_metric_plot(df, metric, groupby_keys):
-    vals = pd.DataFrame(df.loc[pd.to_numeric(df[metric], errors='coerce').notnull()]).reset_index()
+    vals = pd.DataFrame(df).reset_index()
     vals["key"] = vals[groupby_keys].apply(lambda x: "\n".join([str(i) for i in x.to_dict().values()]), axis=1)
+    vals = vals.loc[pd.to_numeric(vals[metric], errors='coerce').notnull()]
     if len(vals) == 0:
         return None
     mean_metric = vals.groupby("key").aggregate({metric: np.mean}).reset_index().sort_values(metric)
     ordered_keys = mean_metric.key.values
     category_order = {"key": ordered_keys}
-    print(vals["key"].unique())
     fig = go.Figure()
     for keys in ordered_keys:
         group = vals.loc[vals.key==keys]
