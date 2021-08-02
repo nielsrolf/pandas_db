@@ -55,3 +55,25 @@ with pandas_db.set_context(foo="foo"):
 If you defined your `views.json` as in the example, you can start the UI via `pandasdb {files/metrics}`.
 ![pandasdb ui](img/ui.png)
 You can edit the data in the top table and save via `ctrl+s`. The filters in the top (search bar + table filters) apply to all displayed data, the filters at the bottom apply to media files only.
+
+# Using the UI in colab
+You can upload all data created by pandas db to some public s3 bucket or whatever, and then show your data to other people via colab:
+
+```
+#@title Start Browser (takes a few minutes)
+print("Install dependencies")
+!pip install --upgrade git+git://github.com/nielsrolf/pandas_db &> /dev/null
+print("Download data")
+!wget https://pandasdb-ddsp-demo.s3.eu-central-1.amazonaws.com/pandasdb.zip
+!unzip pandasdb.zip &> /dev/null
+print("Start browser")
+import os
+os.environ['PANDAS_DB_PATH'] = 'pandasdb'
+from pandas_db import browser
+
+browser.jupyter(
+    keys=["model", "dataset", "audio_file"],
+    columns=["unskewed_spectral_loss", "spectral_loss", "reconstruction_loss", "cycle_reconstruction_loss"],
+    file_id=["model", "audio_file", "dataset", "sample_idx", "audio_type", "plot_type", "timbre", "melody"]
+)
+```
