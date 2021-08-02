@@ -68,10 +68,7 @@ def init_app(keys, columns, file_id, jupyter=False):
     
     metrics_plots = html.Div(id='metrics-view')
 
-    @app.callback(
-        Output('metrics-view', 'children'),
-        [Input('dropdown-{}'.format(key), 'value') for key in dropdown_fields])
-    def get_metrics_view(*dropdown_values):
+    def filter_df(*dropdown_values):
         groupby_keys = []
         filtered_df = df
         for key, value in zip(dropdown_fields, dropdown_values):
@@ -79,15 +76,43 @@ def init_app(keys, columns, file_id, jupyter=False):
                 filtered_df = filtered_df[filtered_df[key].isin(value)]
                 if len(value) > 1:
                     groupby_keys.append(key)
+        return filtered_df, groupby_keys
+
+    @app.callback(
+        Output('metrics-view', 'children'),
+        [Input('dropdown-{}'.format(key), 'value') for key in dropdown_fields])
+    def get_metrics_view(*dropdown_values):
+        filtered_df, groupby_keys = filter_df(*dropdown_values)
         metrics_df = pandas_db.latest(keys=state.keys, metrics=state.columns, df=filtered_df)
         return [get_metric_plot(metrics_df, metric, groupby_keys) for metric in state.columns]
     
+    search = dcc.Input('global-search', type='text', style={"width": "100%", "height": "30px", "z-index": "10", "border": "2px solid #2cb2cb"}, placeholder="Keyword search: enter any number of words you'd like to search")
+
+    detail_view = html.Div([
+        search,
+        dcc.Loading(html.Div(id='medias'))],
+        style={
+                "width": "100%",
+                "background-color": "#2cb2cb",
+                "max-height": "500px",
+                "bottom": "30px",
+                "position": "fixed",
+                "overflow": "scroll"})
+
+    @app.callback(
+        Output('medias', 'children'),
+        [Input('global-search', 'value')] + \
+        [Input('dropdown-{}'.format(key), 'value') for key in dropdown_fields])
+    def update_medias_clb(search_str, *dropdown_values):
+        df_files, _ = filter_df(*dropdown_values)
+        df_files = state.global_search(search_str, df_files)
+        df_files = pandas_db.latest(keys=state.file_id, df=df_files).reset_index()
+        return update_medias(state, df_files)
 
     app.layout = dbc.Container([
         dropdowns,
         metrics_plots,
-        html.Div(id='hidden'),
-        Keyboard(id="keyboard")
+        detail_view
     ])
     return app
 
@@ -95,20 +120,24 @@ def init_app(keys, columns, file_id, jupyter=False):
 def get_metric_plot(df, metric, groupby_keys):
     vals = pd.DataFrame(df.loc[pd.to_numeric(df[metric], errors='coerce').notnull()]).reset_index()
     vals["key"] = vals[groupby_keys].apply(lambda x: "\n".join([str(i) for i in x.to_dict().values()]), axis=1)
+    if len(vals) == 0:
+        return None
+    mean_metric = vals.groupby("key").aggregate({metric: np.mean}).reset_index().sort_values(metric)
+    ordered_keys = mean_metric.key.values
+    category_order = {"key": ordered_keys}
     print(vals["key"].unique())
     fig = go.Figure()
-    for keys, group in vals.groupby("key"):
+    for keys in ordered_keys:
+        group = vals.loc[vals.key==keys]
         fig.add_trace(go.Histogram(x=group[metric], name=keys))
     fig.update_layout(barmode='overlay')
-    fig.update_traces(opacity=min(1, 0.25 + 1/max(1, len(vals))))
+    fig.update_traces(opacity=min(1, 0.25 + 1/len(vals)))
     fig.update_layout(
         title=metric,
         xaxis_title=metric,
         yaxis_title="Count",
     )
     histograms = dcc.Graph(id=f"scatter-{metric}", figure=fig)
-    mean_metric = vals.groupby("key").aggregate({metric: np.mean}).reset_index().sort_values(metric)
-    category_order = {"key": mean_metric.key.values}
     fig = px.box(vals, x="key", y=metric, category_orders=category_order, color="key")
     boxplots = dcc.Graph(id=f"boxplot-{metric}", figure=fig)
     return html.Div([histograms, boxplots])
@@ -162,27 +191,6 @@ def legacy():
     return app
 
     
-def save(state, rows, key_event):
-    if key_event is None:
-        return
-    if not (key_event['key'] == "s" and key_event["ctrlKey"] == True):
-        return None
-    edited = pd.DataFrame(rows, columns=state.keys+state.columns)
-    cols = [c for c in edited.columns if c != "pandas_db.created"]
-    edited = cols_maybe_float(edited)[cols]
-    original = pandas_db.latest(keys=state.keys, df=state.get_transactions()).reset_index()
-    original = edited[state.keys].merge(original, on=state.keys)
-    original = original[edited.columns]
-    row_idx, col_idx = np.where(original != edited)
-    for r, c in zip(row_idx, col_idx):
-        row = edited.iloc[r]
-        previous = original.iloc[r]
-        data = {k: row[k] for k in state.keys if row[k] != "-"}
-        if row[edited.columns[c]] not in ["-", "?"]:
-            data[edited.columns[c]] = row[edited.columns[c]]
-        pandas_db.save(**data)
-    state.fetch()
-    return None
 
 def cols_maybe_float(df):
     df = df.copy()
@@ -201,10 +209,10 @@ class State():
         self.file_info = None
         self.fetch()
     
-    def get_transactions(self, search_str=""):
-        if self._transactions is None:
+    def global_search(self, search_str="", dff=None):
+        dff = dff if dff is not None else self._transactions
+        if dff is None:
             return None
-        dff = self._transactions
         if search_str is not None and search_str != "":
             search_index = self.search
             for i in search_str.replace(" ", ",").split(","):
@@ -222,41 +230,14 @@ def concat_as_str(values):
     return "".join([str(i) for i in values])
 
 
-def update_table_data(state, search_str, table_filters):
-    """Given all relevant input fields, rebuild the app but now filled with data"""
-    transactions = state.get_transactions(search_str)
-    df_main = apply_filters(transactions, table_filters)
-    df_main = pandas_db.latest(keys=state.keys, df=df_main).reset_index()
-    return df_main.to_dict('records')
-
-
-def update_medias(state, search_str, table_filters, file_filters, active_cell, table_data):
-    if active_cell is None:
-        return
-
-    transactions = state.get_transactions(search_str)
-    df_main = apply_filters(transactions, table_filters)
-    df_table = pd.DataFrame(table_data)
-    df_files = apply_filters(df_main, file_filters)
-    df_files = pandas_db.latest(keys=state.file_id, df=df_files).reset_index()
-    row = df_table.iloc[active_cell['row']]
-    sep = "!!!"
-    files = df_files.groupby(by=state.keys).aggregate({"file": lambda i: sep.join(i.unique())}).reset_index()
-    selected = pd.merge(
-        pd.DataFrame(row).T[state.keys],
-        files, how='left', on=state.keys).fillna("")
-    selected = selected.sort_values(state.keys)
-    if len(selected) == 0:
-        return
-    selected = selected['file'].iloc[0].split(sep)
+def update_medias(state, df_files):
     medias = []
-    for rel_path in selected[:10]:
+    for rel_path in df_files["file"].values[:5]:
         try:
             file_info = state.file_info.loc[state.file_info['file']==rel_path].iloc[0]
             filepath = os.path.join(DEFAULT_PANDAS_DB_PATH, ".pandas_db_files", rel_path)
             medias += [show_media(state, filepath, file_info)]
         except (KeyError, FileNotFoundError, IndexError) as e:
-            breakpoint()
             print(e)
             pass
     return medias
@@ -291,105 +272,7 @@ def show_media(state, media_file, file_info):
                             "margin-bottom": "5px", "margin-top": "5px"})
 
 
-def get_main_table(state, df=None):
-    columns = state.keys + state.columns
-    table = dash_table.DataTable(
-        id='table-filtering',
-        columns=[
-            {"name": i, "id": i, "hideable": True, "editable": i not in state.keys} for i in columns
-        ],
-        style_cell={'padding': '5px', 'min-width': "50px"},
-        style_header={
-            'backgroundColor': 'white',
-            'fontWeight': 'bold'
-        },
-        style_as_list_view=True,
-        style_cell_conditional=[
-            {
-                'if': {'column_id': c},
-                'textAlign': 'left'
-            } for c in state.keys
-        ],
-        # fixed_rows={'headers': True},
-        style_table={"height": "100%"},
-        # page_current=0,
-        # page_size=PAGE_SIZE,
-        page_action='custom',
-        filter_action='custom',
-        filter_query=''
-    )
-    return table
 
-
-def get_file_filter(STATE):
-    file_filter = (STATE.file_id if STATE.file_id is not None else STATE.columns)
-    file_filter = [i for i in file_filter if not i in STATE.keys]
-    file_filter = dash_table.DataTable(
-        id='file-filtering',
-        columns=[
-            {"name": i, "id": i} for i in file_filter
-        ],
-        style_cell={'padding': '5px', 'min-width': "50px", "text-align": "center"},
-        style_header={
-            'backgroundColor': 'white',
-            'fontWeight': 'bold'
-        },
-        style_as_list_view=True,
-        filter_action='custom',
-        filter_query=''
-    )
-    return html.Div(html.Div(file_filter, style={"width": "99%", "self-align": "center"}), style={"background-color": "white", "position": "fixed", "bottom": "0", "height": "30", "width": "100%", "padding-": "20px", "overflow": "scroll", "border-top": "1px solid #2cb2cb"})
-
-
-operators = [['ge ', '>='],
-            ['le ', '<='],
-            ['lt ', '<'],
-            ['gt ', '>'],
-            ['ne ', '!='],
-            ['eq ', '='],
-            ['contains '],
-            ['datestartswith ']]
-
-
-def split_filter_part(filter_part):
-    for operator_type in operators:
-        for operator in operator_type:
-            if operator in filter_part:
-                name_part, value_part = filter_part.split(operator, 1)
-                name = name_part[name_part.find('{') + 1: name_part.rfind('}')]
-
-                value_part = value_part.strip()
-                v0 = value_part[0]
-                if (v0 == value_part[-1] and v0 in ("'", '"', '`')):
-                    value = value_part[1: -1].replace('\\' + v0, v0)
-                else:
-                    try:
-                        value = float(value_part)
-                    except ValueError:
-                        value = value_part
-
-                # word operators need spaces after them in the filter string,
-                # but we don't want these later
-                return name, operator_type[0].strip(), value
-
-    return [None] * 3
-
-
-def apply_filters(dff, filter):
-    filtering_expressions = filter.split(' && ')
-    for filter_part in filtering_expressions:
-        col_name, operator, filter_value = split_filter_part(filter_part)
-        if operator in ('eq', 'ne', 'lt', 'le', 'gt', 'ge'):
-            # these operators match pandas series operator method names
-            dff = dff.loc[(dff[col_name].apply(lambda i: isinstance(i, float))) & 
-                            (getattr(dff[col_name].apply(float_or_zero), operator))(filter_value)]
-        elif operator == 'contains':
-            dff = dff.loc[dff[col_name].astype(str).str.contains(str(filter_value))]
-        elif operator == 'datestartswith':
-            # this is a simplification of the front-end filtering logic,
-            # only works with complete fields in standard format
-            dff = dff.loc[dff[col_name].astype(str).str.startswith(filter_value)]
-    return dff
 
 
 if __name__ == '__main__':
