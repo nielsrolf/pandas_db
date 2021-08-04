@@ -26,11 +26,11 @@ pandas_db = PandasDB()
 @click.argument("view_name")
 def main(view_name):
     """entry point to start the app"""
-    with open(os.path.join(os.environ['PANDAS_DB_PATH'], ".pandas_db_views.json")) as json_file:
+    with open(os.path.join(DEFAULT_PANDAS_DB_PATH, ".pandas_db_views.json")) as json_file:
         views = json.load(json_file)
     view = views[view_name]
     app = init_app(keys=view['keys'], columns=view.get('columns'), file_id=view.get('file_id'))
-    app.run_server(debug=True)
+    app.run_server(host='0.0.0.0', port=8050)
 
 
 def jupyter(keys, columns, file_id, **server_args):
@@ -150,61 +150,6 @@ def get_metric_plot(df, metric, groupby_keys):
     boxplots = dcc.Graph(id=f"boxplot-{metric}", figure=fig)
     return html.Div([histograms, boxplots])
 
-
-def legacy():
-    search = dcc.Input('global-search', type='text', style={"width": "100%", "height": "30px", "position": "fixed", "top": "0px", "z-index": "10", "border": "2px solid #2cb2cb"}, placeholder="Keyword search: enter any number of words you'd like to search")
-    table_view = dcc.Loading(html.Div(get_main_table(state), id='table-view',
-                            style={"padding-bottom": "500px", "margin-top": "35px"}))
-    detail_view = html.Div(dcc.Loading(html.Div(id='medias')), style={
-                "width": "100%",
-                "background-color": "#2cb2cb",
-                "max-height": "500px",
-                "bottom": "30px",
-                "position": "fixed",
-                "overflow": "scroll"})
-    file_filter = get_file_filter(state)
-    app.layout = html.Div([
-        search,
-        table_view,
-        detail_view,
-        file_filter,
-        html.Div(id='hidden'),
-        Keyboard(id="keyboard")
-    ])
-
-    @app.callback(
-        Output('table-filtering', 'data'),
-        Input('global-search', 'value'),
-        Input('table-filtering', "filter_query"))
-    def update_table_data_clb(search_str, table_filters):
-        return update_table_data(state, search_str, table_filters)
-    
-    @app.callback(
-        Output('medias', 'children'),
-        Input('global-search', 'value'),
-        Input('table-filtering', "filter_query"),
-        Input('file-filtering', "filter_query"),
-        Input('table-filtering', 'active_cell'),
-        Input('table-filtering', 'data'))
-    def update_medias_clb(search_str, table_filters, file_filters, active_cell, table_data):
-        return update_medias(state, search_str, table_filters, file_filters, active_cell, table_data)
-    
-    @app.callback(
-        Output('hidden', 'children'),
-        Input('table-filtering', 'data'),
-        Input("keyboard", "keydown"))
-    def save_clb(rows, key_event):
-        save(state, rows, key_event)
-    
-    return app
-
-    
-
-def cols_maybe_float(df):
-    df = df.copy()
-    for c in df.columns:
-        df[c] = df[c].apply(maybe_float)
-    return df
 
 
 class State():

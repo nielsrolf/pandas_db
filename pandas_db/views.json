@@ -12,8 +12,8 @@
         "columns": ["unskewed_spectral_loss", "spectral_loss", "reconstruction_loss", "cycle_reconstruction_loss"]
     },
     "metrics2": {
-        "keys": ["train_data", "z_aggregation", "crepe_f0", "loudness_algorithm", "loss_function", "dataset", "audio_file"],
-        "file_id": ["audio_file", "dataset", "tag", "sample_idx", "audio_type", "plot_type", "s", "melody", "timbre", "model"],
+        "keys": ["train_data", "z_aggregation", "crepe_f0", "loudness_algorithm", "loss_function", "test_data", "audio_file"],
+        "file_id": ["audio_file", "test_data", "tag", "sample_idx", "audio_type", "plot_type", "s", "melody", "timbre", "model"],
         "columns": ["unskewed_spectral_loss", "spectral_loss", "reconstruction_loss", "cycle_reconstruction_loss"]
     }
 }
