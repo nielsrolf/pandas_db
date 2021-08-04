@@ -1,3 +1,4 @@
+import pandas_db
 import dash
 from dash.dependencies import Input, Output
 import dash_core_components as dcc
@@ -8,13 +9,17 @@ from jupyter_dash import JupyterDash
 import plotly.express as px
 import plotly.graph_objects as go
 import pandas as pd
-from pandas_db.pandas_db import pandas_db, maybe_float, DEFAULT_PANDAS_DB_PATH
+from pandas_db.pandas_db import PandasDB, maybe_float, DEFAULT_PANDAS_DB_PATH
 import numpy as np
 from dash_extensions import Keyboard
 import os
 import base64
 import json
 import click
+
+
+# pandas_db = PandasDB(csv_path="/Users/nielswarncke/Google Drive/ddsp/pandasdb/migration1.csv")
+pandas_db = PandasDB()
 
 
 @click.command()
@@ -105,7 +110,6 @@ def init_app(keys, columns, file_id, jupyter=False):
         df_files, groupby_keys = filter_df(*dropdown_values)
         df_files = state.global_search(search_str, df_files)
         keys = [key for key in state.file_id if key not in groupby_keys] + groupby_keys
-        print("yo", df_files.columns)
         try:
             df_files = df_files.fillna("")
             df_files = pandas_db.latest(keys=keys, df=df_files).reset_index()

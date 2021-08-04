@@ -27,20 +27,20 @@ def modification_time(filepath):
 
 
 class PandasDB():
-    def __init__(self, path=None, context=None):
+    def __init__(self, path=None, context=None, csv_path=None):
         self.path = path or DEFAULT_PANDAS_DB_PATH
+        self.csv_path = csv_path or os.path.join(self.path, ".local_db.csv")
         self.context = context or {}
         self._df = None
         self._loaded = None
     
     def get_df(self):
-        csv_path = os.path.join(self.path, ".local_db.csv")
         if self._df is not None:
-            if self._loaded == modification_time(csv_path):
+            if self._loaded == modification_time(self.csv_path):
                 return self._df
         try:
-            self._df = pd.read_csv(csv_path, index_col=0)
-            self._loaded = modification_time(csv_path)
+            self._df = pd.read_csv(self.csv_path, index_col=0)
+            self._loaded = modification_time(self.csv_path)
             return self._df
         except FileNotFoundError:
             return pd.DataFrame(columns=['pandas_db.created', 'file'])
