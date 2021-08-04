@@ -190,8 +190,7 @@ def update_medias(state, df_files):
     for rel_path in df_files["file"].values[:5]:
         try:
             file_info = state.file_info.loc[state.file_info['file']==rel_path].iloc[0]
-            filepath = os.path.join(DEFAULT_PANDAS_DB_PATH, ".pandas_db_files", rel_path)
-            medias += [show_media(state, filepath, file_info)]
+            medias += [show_media(state, rel_path, file_info)]
         except (KeyError, FileNotFoundError, IndexError) as e:
             print(e)
             pass
@@ -199,12 +198,21 @@ def update_medias(state, df_files):
 
 
 def show_media(state, media_file, file_info):
-    data = str(base64.b64encode(open(media_file, 'rb').read()))[2:-1]
-    media = None
-    if media_file.endswith(".png"):
-        media = html.Img(src='data:image/png;base64,{}'.format(data), style={"height": "300px", "width": "auto"})
-    if media_file.endswith(".wav"):
-        media = html.Audio(src='data:audio/wav;base64,{}'.format(data), controls=True)
+    if os.environ.get("PANDAS_DB_S3_PREFIX") is not None:
+        if media_file.endswith(".png"):
+            media = html.Img(src=f"{os.environ.get('PANDAS_DB_S3_PREFIX')}.pandas_db_files/{media_file}", style={"height": "300px", "width": "auto"})
+        elif media_file.endswith(".wav"):
+            media = html.Audio(src=f"{os.environ.get('PANDAS_DB_S3_PREFIX')}.pandas_db_files/{media_file}", controls=True)
+        else:
+            media = "Not found"
+    else:
+        media_file = os.path.join(DEFAULT_PANDAS_DB_PATH, ".pandas_db_files", media_file)
+        data = str(base64.b64encode(open(media_file, 'rb').read()))[2:-1]
+        media = None
+        if media_file.endswith(".png"):
+            media = html.Img(src='data:image/png;base64,{}'.format(data), style={"height": "300px", "width": "auto"})
+        if media_file.endswith(".wav"):
+            media = html.Audio(src='data:audio/wav;base64,{}'.format(data), controls=True)
     file_info = pd.DataFrame(file_info).T[state.file_id].T.reset_index()
     rename_cols = dict(zip(file_info.columns, ["key", "value"]))
     file_info = file_info.rename(columns=rename_cols)
