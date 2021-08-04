@@ -18,8 +18,10 @@ import json
 import click
 
 
-# pandas_db = PandasDB(csv_path="/Users/nielswarncke/Google Drive/ddsp/pandasdb/migration1.csv")
-pandas_db = PandasDB()
+if os.path.exists(os.path.join(DEFAULT_PANDAS_DB_PATH, "migrated.csv")):
+    pandas_db = PandasDB(csv_path=os.path.join(DEFAULT_PANDAS_DB_PATH, "migrated.csv"))
+else:
+    pandas_db = PandasDB()
 
 
 @click.command()
