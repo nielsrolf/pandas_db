@@ -32,7 +32,7 @@ def main(view_name):
         views = json.load(json_file)
     view = views[view_name]
     app = init_app(keys=view['keys'], columns=view.get('columns'), file_id=view.get('file_id'))
-    app.run_server(host='0.0.0.0', port=8050)
+    app.run_server(host='0.0.0.0', port=8050, debug=True)
 
 
 def jupyter(keys, columns, file_id, **server_args):
@@ -112,9 +112,11 @@ def init_app(keys, columns, file_id, jupyter=False):
         df_files, groupby_keys = filter_df(*dropdown_values)
         df_files = state.global_search(search_str, df_files)
         keys = [key for key in state.file_id if key not in groupby_keys] + groupby_keys
+
         try:
             df_files = df_files.fillna("")
             df_files = pandas_db.latest(keys=keys, df=df_files).reset_index()
+            df_files = df_files.loc[(df_files.file!="") & (df_files.file != "?")]
         except:
             return None
         return update_medias(state, df_files)
@@ -131,6 +133,7 @@ def get_metric_plot(df, metric, groupby_keys):
     vals = pd.DataFrame(df).reset_index()
     vals["key"] = vals[groupby_keys].apply(lambda x: "\n".join([str(i) for i in x.to_dict().values()]), axis=1)
     vals = vals.loc[pd.to_numeric(vals[metric], errors='coerce').notnull()]
+
     if len(vals) == 0:
         return None
     mean_metric = vals.groupby("key").aggregate({metric: np.mean}).reset_index().sort_values(metric)
@@ -178,7 +181,7 @@ class State():
     def fetch(self):
         self._transactions = pandas_db.get_df()
         self.search = self._transactions.fillna("").apply(concat_as_str, axis=1)
-        self.file_info = pandas_db.latest(keys=["file"], df=self._transactions).reset_index()
+        self.file_info = pandas_db.latest(keys=["file"], df=self._transactions)
 
 
 def concat_as_str(values):
@@ -189,10 +192,11 @@ def update_medias(state, df_files):
     medias = []
     for rel_path in df_files["file"].values[:5]:
         try:
-            file_info = state.file_info.loc[state.file_info['file']==rel_path].iloc[0]
+            file_info = state.file_info.loc[rel_path]
             medias += [show_media(state, rel_path, file_info)]
         except (KeyError, FileNotFoundError, IndexError) as e:
             print(e)
+            breakpoint()
             pass
     return medias
 

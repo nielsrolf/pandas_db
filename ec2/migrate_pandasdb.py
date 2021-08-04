@@ -8,7 +8,7 @@ df = pd.read_csv(pandas_db_csv_path)
 
 # train_data_set
 def get_train_dataset(model):
-    if not isinstance(model, str):
+    if not isinstance(model, str) or model == "*":
         return None
     options = ["sh101_train", "urmp_train", "idmt_drum_train", "combined_train", "guitar_train", "bass_train"]
     for option in options:
@@ -32,7 +32,7 @@ def get_test_dataset(row):
     src = row['audio_file']
     if isinstance(src, str):
         for option in options:
-            if option in src:
+            if option.replace("_test", "") in src:
                 return option
     return None
 
@@ -52,14 +52,14 @@ def get_loss_function(model):
         return "spectral_loss"
     if "time_aggregation"in model:
         return "unskewed_loss"
-    elif "time_constant" in model:
+    elif "time_constant" in model or "time_average" in model:
         return "spectral_loss"
     if "no_crepe" in model:
         return "unskewed_loss"
     return None
 df['loss_function'] = df['model'].apply(get_loss_function)
 
-# loss_function
+# loudness
 def get_loudness_algorithm(model):
     if not isinstance(model, str):
         return None
@@ -73,7 +73,7 @@ def get_loudness_algorithm(model):
         return "old_loudness"
     if "time_aggregation"in model:
         return "new_loudness"
-    elif "time_constant" in model:
+    elif "time_constant" in model or "time_average" in model:
         return "old_loudness"
     if "no_crepe" in model:
         return "new_loudness"
@@ -88,7 +88,7 @@ def get_z_aggregation(model):
         return "groupwise"
     elif "confidence" in model:
         return "confidence"
-    elif "time_average" in model or "loudness_and_loss" in model:
+    elif "average" in model or "loudness_and_loss" in model:
         return "mean"
     elif "baseline_ae" in model:
         return "none"
@@ -99,9 +99,14 @@ df['z_aggregation'] = df['model'].apply(get_z_aggregation)
 
 # Use CREPE
 def get_crepe_f0(model):
-    if not isinstance(model, str):
+    if not isinstance(model, str) or model=="*":
         return None
     return "CREPE not used" if "no_crepe" in model else "CREPE used"
 df['crepe_f0'] = df['model'].apply(get_crepe_f0)
+
+
+check_cols = ["loss_function", "z_aggregation", "loudness_algorithm", "crepe_f0", "train_data", "test_data"]
+for col in check_cols:
+    print(col, df.loc[df[col].isnull()].model.unique())
 
 df.to_csv(os.path.join(pandas_db.path, "migrated.csv"), index=False)
