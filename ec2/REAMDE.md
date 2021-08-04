@@ -4,3 +4,4 @@ Edit the inbound rules of the security group to allow traffic on port 8050, and 
 
 Stuff that needs to be configured manually on ec2:
 - `export PANDAS_DB_S3_PREFIX="https://<your s3 bucket with anb upload of $PANDAS_DB_PATH>.s3.eu-central-1.amazonaws.com/"` goes to .bashrc
+- Add a cron job to check for updates and restart: `15 * * * * /bin/bash /home/ubuntu/pandas_db/ec2/update_and_restart.sh 2> /home/ubuntu/cron_logs`

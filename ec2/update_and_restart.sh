@@ -1,3 +1,5 @@
+source /home/ubuntu/.bashrc
+which python
 cd /home/ubuntu/pandas_db
 git log > oldlog
 git pull
