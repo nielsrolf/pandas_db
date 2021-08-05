@@ -16,6 +16,7 @@ import os
 import base64
 import json
 import click
+import functools
 
 
 if os.path.exists(os.path.join(DEFAULT_PANDAS_DB_PATH, "migrated.csv")):
@@ -58,7 +59,8 @@ def init_app(keys, columns, file_id, jupyter=False):
     else:
         app = JupyterDash(__name__)
     
-    df = pandas_db.get_df().fillna("")
+    df = pandas_db.get_df()
+    metrics_df = pandas_db.latest(keys=keys, metrics=state.columns, df=df)
 
     dropdown_fields = state.keys + [i for i in state.file_id if i not in state.keys]
     
@@ -66,35 +68,36 @@ def init_app(keys, columns, file_id, jupyter=False):
                     dbc.Col([
                         dcc.Dropdown(
                             id=f"dropdown-{key}",
-                            options=[{'label': i, 'value': i} for i in list(df[key].unique()) if i != ""],
+                            options=[{'label': i, 'value': i} for i in list(df[key].dropna().unique()) if i != ""],
                             multi=True,
                             style={"font-size": "13px"},
                             placeholder=key)
                     ], md=1) for key in dropdown_fields], align="center", no_gutters=True))
     
-    
     metrics_plots = html.Div(id='metrics-view')
 
+    @functools.lru_cache(maxsize=20)
     def filter_df(*dropdown_values):
+        dropdown_values = unsmask_dropdown_values(dropdown_values)
         groupby_keys = []
-        filtered_df = df
+        filtered_df = metrics_df.reset_index()
         for key, value in zip(dropdown_fields, dropdown_values):
             if value is not None and len(value) > 0:
                 filtered_df = filtered_df[filtered_df[key].isin(value)]
                 if len(value) > 1:
                     groupby_keys.append(key)
+        filtered_df["key"] = filtered_df[groupby_keys].apply(lambda x: "\n".join([str(i) for i in x.to_dict().values()]), axis=1)
         return filtered_df, groupby_keys
 
     @app.callback(
         Output('metrics-view', 'children'),
         [Input('dropdown-{}'.format(key), 'value') for key in dropdown_fields])
     def get_metrics_view(*dropdown_values):
+        dropdown_values = mask_dropdown_values(dropdown_values)
         filtered_df, groupby_keys = filter_df(*dropdown_values)
-        keys = list(set(state.keys + groupby_keys))
-        metrics_df = pandas_db.latest(keys=keys, metrics=state.columns, df=filtered_df)
-        return [get_metric_plot(metrics_df, metric, groupby_keys) for metric in state.columns]
+        return get_metric_plot(filtered_df, state.columns, groupby_keys)
     
-    search = dcc.Input('global-search', type='text', style={"width": "100%", "height": "30px", "z-index": "10", "border": "2px solid #2cb2cb"}, placeholder="Keyword search: enter any number of words you'd like to search")
+    search = dcc.Input('global-search', type='text', style={"width": "100%", "height": "30px", "z-index": "10", "border": "2px solid #2cb2cb", "position": "fixed", "bottom": "1px"}, placeholder="Keyword search: enter any number of words you'd like to search")
 
     detail_view = html.Div([
         search,
@@ -104,56 +107,93 @@ def init_app(keys, columns, file_id, jupyter=False):
                 "background-color": "#2cb2cb",
                 "bottom": "30px"})
 
-    @app.callback(
-        Output('medias', 'children'),
-        [Input('global-search', 'value')] + \
-        [Input('dropdown-{}'.format(key), 'value') for key in dropdown_fields])
-    def update_medias_clb(search_str, *dropdown_values):
-        df_files, groupby_keys = filter_df(*dropdown_values)
-        df_files = state.global_search(search_str, df_files)
-        keys = [key for key in state.file_id if key not in groupby_keys] + groupby_keys
+    # @app.callback(
+    #     Output('medias', 'children'),
+    #     [Input('global-search', 'value')] + \
+    #     [Input('dropdown-{}'.format(key), 'value') for key in dropdown_fields])
+    # def update_medias_clb(search_str, *dropdown_values):
+    #     df_files, groupby_keys = filter_df(*dropdown_values)
+    #     df_files = state.global_search(search_str, df_files)
+    #     keys = [key for key in state.file_id if key not in groupby_keys] + groupby_keys
 
-        try:
-            df_files = df_files.fillna("")
-            df_files = pandas_db.latest(keys=keys, df=df_files).reset_index()
-            df_files = df_files.loc[(df_files.file!="") & (df_files.file != "?")]
-        except:
-            return None
-        return update_medias(state, df_files)
+    #     try:
+    #         df_files = df_files.fillna("")
+    #         df_files = pandas_db.latest(keys=keys, df=df_files).reset_index()
+    #         df_files = df_files.loc[(df_files.file!="") & (df_files.file != "?")]
+    #     except:
+    #         return None
+    #     return update_medias(state, df_files)
 
     app.layout = dbc.Container([
         dropdowns,
         metrics_plots,
-        detail_view
+        # detail_view
     ])
     return app
 
 
-def get_metric_plot(df, metric, groupby_keys):
-    vals = pd.DataFrame(df).reset_index()
-    vals["key"] = vals[groupby_keys].apply(lambda x: "\n".join([str(i) for i in x.to_dict().values()]), axis=1)
-    vals = vals.loc[pd.to_numeric(vals[metric], errors='coerce').notnull()]
+def mask_dropdown_values(dropdown_values):
+    return ["||".join(i) if isinstance(i, list) else i for i in dropdown_values]
+
+
+def unsmask_dropdown_values(dropdown_values):
+    return [i.split("||") if isinstance(i, str) else i for i in dropdown_values]
+
+
+def get_metric_plot(df, metrics, groupby_keys):
+    # vals = pd.DataFrame(df).reset_index()
+    # vals["key"] = vals[groupby_keys].apply(lambda x: "\n".join([str(i) for i in x.to_dict().values()]), axis=1)
+    # vals = df.loc[pd.to_numeric(df[metric], errors='coerce').notnull()]
+    metric_plots = []
+    vals = df.reset_index()
 
     if len(vals) == 0:
         return None
-    mean_metric = vals.groupby("key").aggregate({metric: np.mean}).reset_index().sort_values(metric)
-    ordered_keys = mean_metric.key.values
-    category_order = {"key": ordered_keys}
-    fig = go.Figure()
-    for keys in ordered_keys:
-        group = vals.loc[vals.key==keys]
-        fig.add_trace(go.Histogram(x=group[metric], name=keys))
-    fig.update_layout(barmode='overlay')
-    fig.update_traces(opacity=min(1, 0.25 + 1/len(vals)))
-    fig.update_layout(
-        title=metric,
-        xaxis_title=metric,
-        yaxis_title="Count",
-    )
-    histograms = dcc.Graph(id=f"scatter-{metric}", figure=fig)
-    fig = px.box(vals, x="key", y=metric, category_orders=category_order, color="key")
-    boxplots = dcc.Graph(id=f"boxplot-{metric}", figure=fig)
-    return html.Div([histograms, boxplots])
+
+    mean_metrics = vals.groupby("key").aggregate(np.nanmean)
+    for metric in metrics:
+        mean_metric = mean_metrics.sort_values(metric)
+        ordered_keys = mean_metric.index.values
+        category_order = {"key": ordered_keys}
+        fig = go.Figure()
+        for key in ordered_keys:
+            res = vals.loc[vals.key==key][metric].dropna().values
+            fig.add_trace(go.Histogram(x=res, name=key, histnorm='probability'))
+        fig.update_layout(barmode='overlay')
+        fig.update_traces(opacity=min(1, 0.25 + 1/len(vals)))
+        fig.update_layout(
+            title=metric,
+            xaxis_title=metric,
+            yaxis_title="Density",
+        )
+        histograms = dcc.Graph(id=f"scatter-{metric}", figure=fig)
+        fig = px.box(vals, x="key", y=metric, category_orders=category_order, color="key")
+        boxplots = dcc.Graph(id=f"boxplot-{metric}", figure=fig)
+        metric_plots += [html.Div([histograms, boxplots])]
+    return metric_plots
+
+    mean_metrics = vals.aggregate(np.nanmean)
+
+    for metric in metrics:
+        mean_metric = mean_metrics.sort_values(metric)
+        ordered_keys = mean_metric.index.values
+        category_order = {"key": ordered_keys}
+        fig = go.Figure()
+        for keys in ordered_keys:
+            res = vals.get_group(keys)[metric].dropna().values
+            fig.add_trace(go.Histogram(x=res, name=keys, histnorm='probability'))
+        fig.update_layout(barmode='overlay')
+        fig.update_traces(opacity=min(1, 0.25 + 1/len(vals)))
+        fig.update_layout(
+            title=metric,
+            xaxis_title=metric,
+            yaxis_title="Count",
+        )
+        histograms = dcc.Graph(id=f"scatter-{metric}", figure=fig)
+        fig = px.box(vals.reset_index(), x="key", y=metric, category_orders=category_order, color="key")
+        boxplots = dcc.Graph(id=f"boxplot-{metric}", figure=fig)
+        metric_plots += [html.Div([histograms, boxplots])]
+    return metric_plots
 
 
 

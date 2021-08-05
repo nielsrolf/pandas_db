@@ -60,8 +60,7 @@ class PandasDB():
             return values[-1]
         df = df.sort_values("pandas_db.created")\
                 .groupby(keys)\
-                .aggregate(latest_entry)\
-                .fillna("?")
+                .aggregate(latest_entry)
         if metrics is None:
             return df
         return df[metrics]
