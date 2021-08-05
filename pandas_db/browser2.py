@@ -33,7 +33,7 @@ def main(view_name):
         views = json.load(json_file)
     view = views[view_name]
     app = init_app(keys=view['keys'], columns=view.get('columns'), file_id=view.get('file_id'))
-    app.run_server(host='0.0.0.0', port=8050, debug=True)
+    app.run_server(host='0.0.0.0', port=8050)
 
 
 def jupyter(keys, columns, file_id, **server_args):
