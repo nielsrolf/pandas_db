@@ -111,21 +111,23 @@ def init_app(keys, columns, file_id, jupyter=False):
         dropdown_values = unsmask_dropdown_values(dropdown_values)
         groupby_keys = []
         filtered_df = state.file_info.reset_index()
+        search_index = state.search
         for key, value in zip(dropdown_fields, dropdown_values):
             if value is not None and len(value) > 0:
-                filtered_df = filtered_df[filtered_df[key].isin(value)]
+                selection = filtered_df[key].isin(value)
+                search_index = search_index.loc[selection]
+                filtered_df = filtered_df.loc[selection]
                 if len(value) > 1:
                     groupby_keys.append(key)
         filtered_df["key"] = filtered_df[groupby_keys].apply(lambda x: "\n".join([str(i) for i in x.to_dict().values()]), axis=1)
         if filtered_df is None:
             return None
         if search_str is not None and search_str != "":
-            search_index = state.search
             for i in search_str.replace(" ", ",").split(","):
-                selection = search_index.str.contains(i)
+                selection = search_index['search_index'].str.contains(i)
                 filtered_df = filtered_df.loc[selection]
-                search_index = search_index[selection]
-        return filtered_df
+                search_index = search_index.loc[selection]
+        return filtered_df, groupby_keys
 
     @app.callback(
         Output('medias', 'children'),
@@ -133,8 +135,9 @@ def init_app(keys, columns, file_id, jupyter=False):
         [Input('dropdown-{}'.format(key), 'value') for key in dropdown_fields])
     def update_medias_clb(search_str, *dropdown_values):
         dropdown_values = mask_dropdown_values(dropdown_values)
-        df_files, groupby_keys = filter_df(*dropdown_values)
-        df_files = global_search(*dropdown_values, search_str=search_str)
+        df_files , groupby_keys = global_search(*dropdown_values, search_str=search_str)
+        if len(df_files) == 0:
+            return
         keys = [key for key in state.file_id if key not in groupby_keys] + groupby_keys
 
         df_files = df_files.fillna("")
@@ -151,7 +154,8 @@ def init_app(keys, columns, file_id, jupyter=False):
 
 
 def mask_dropdown_values(dropdown_values):
-    return ["||".join(i) if isinstance(i, list) else i for i in dropdown_values]
+    masked_values = ["||".join(i) if isinstance(i, list) else i for i in dropdown_values]
+    return [i if i != "" else None for i in masked_values]
 
 
 def unsmask_dropdown_values(dropdown_values):
@@ -200,8 +204,9 @@ class State():
 
     def fetch(self):
         self._transactions = pandas_db.get_df()
-        self.search = self._transactions.fillna("").apply(concat_as_str, axis=1)
         self.file_info = pandas_db.latest(keys=["file"], df=self._transactions)
+        self.search = self.file_info.fillna("").reset_index()
+        self.search['search_index'] = self.search.apply(concat_as_str, axis=1)
 
 
 def concat_as_str(values):
@@ -216,7 +221,6 @@ def update_medias(state, df_files):
             medias += [show_media(state, rel_path, file_info)]
         except (KeyError, FileNotFoundError, IndexError) as e:
             print(e)
-            breakpoint()
             pass
     return medias
 
