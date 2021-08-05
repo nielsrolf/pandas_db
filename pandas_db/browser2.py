@@ -62,9 +62,11 @@ def init_app(keys, columns, file_id, jupyter=False):
     df = pandas_db.get_df()
     metrics_df = pandas_db.latest(keys=keys, metrics=state.columns, df=df)
 
-    dropdown_fields = state.keys + [i for i in state.file_id if i not in state.keys]
+    dropdown_fields_top = state.keys
+    dropdown_fields_files = [i for i in state.file_id if i not in state.keys]
+    dropdown_fields = dropdown_fields_top + dropdown_fields_files
     
-    dropdowns =  html.Div(dbc.Row([
+    dropdowns_top =  html.Div(dbc.Row([
                     dbc.Col([
                         dcc.Dropdown(
                             id=f"dropdown-{key}",
@@ -72,7 +74,16 @@ def init_app(keys, columns, file_id, jupyter=False):
                             multi=True,
                             style={"font-size": "13px"},
                             placeholder=key)
-                    ], md=1) for key in dropdown_fields], align="center", no_gutters=True))
+                    ], md=1) for key in dropdown_fields_top], align="center", no_gutters=True))
+    dropdowns_files =  html.Div(dbc.Row([
+                    dbc.Col([
+                        dcc.Dropdown(
+                            id=f"dropdown-{key}",
+                            options=[{'label': i, 'value': i} for i in list(df[key].dropna().unique()) if i != ""],
+                            multi=True,
+                            style={"font-size": "13px"},
+                            placeholder=key)
+                    ], md=1) for key in dropdown_fields_files], align="center", no_gutters=True))
     
     metrics_plots = html.Div(id='metrics-view')
 
@@ -81,7 +92,7 @@ def init_app(keys, columns, file_id, jupyter=False):
         dropdown_values = unsmask_dropdown_values(dropdown_values)
         groupby_keys = []
         filtered_df = metrics_df.reset_index()
-        for key, value in zip(dropdown_fields, dropdown_values):
+        for key, value in zip(dropdown_fields[:len(dropdown_values)], dropdown_values):
             if value is not None and len(value) > 0:
                 filtered_df = filtered_df[filtered_df[key].isin(value)]
                 if len(value) > 1:
@@ -91,7 +102,7 @@ def init_app(keys, columns, file_id, jupyter=False):
 
     @app.callback(
         Output('metrics-view', 'children'),
-        [Input('dropdown-{}'.format(key), 'value') for key in dropdown_fields])
+        [Input('dropdown-{}'.format(key), 'value') for key in dropdown_fields_top])
     def get_metrics_view(*dropdown_values):
         dropdown_values = mask_dropdown_values(dropdown_values)
         filtered_df, groupby_keys = filter_df(*dropdown_values)
@@ -100,6 +111,7 @@ def init_app(keys, columns, file_id, jupyter=False):
     search = dcc.Input('global-search', type='text', style={"width": "100%", "height": "30px", "z-index": "10", "border": "2px solid #2cb2cb", "position": "fixed", "bottom": "1px"}, placeholder="Keyword search: enter any number of words you'd like to search")
 
     detail_view = html.Div([
+        dropdowns_files,
         search,
         dcc.Loading(html.Div(id='medias'))],
         style={
@@ -146,7 +158,7 @@ def init_app(keys, columns, file_id, jupyter=False):
         return update_medias(state, df_files)
 
     app.layout = dbc.Container([
-        dropdowns,
+        dropdowns_top,
         metrics_plots,
         detail_view
     ])
