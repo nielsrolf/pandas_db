@@ -54,6 +54,7 @@ class PandasDB():
         if keys is None:
             keys = [c for c in cols if not c in metrics and c != "pandas_db.created"]
         def latest_entry(values):
+            values = values.values if isinstance(values, pd.Series) else values
             values = values[(values!=na_placeholder) & (values!="")]
             if len(values) == 0:
                 return None

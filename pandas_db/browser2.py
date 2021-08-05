@@ -106,28 +106,46 @@ def init_app(keys, columns, file_id, jupyter=False):
                 "width": "100%",
                 "background-color": "#2cb2cb",
                 "bottom": "30px"})
+    @functools.lru_cache(maxsize=20)
+    def global_search(*dropdown_values, search_str=""):
+        dropdown_values = unsmask_dropdown_values(dropdown_values)
+        groupby_keys = []
+        filtered_df = state.file_info.reset_index()
+        for key, value in zip(dropdown_fields, dropdown_values):
+            if value is not None and len(value) > 0:
+                filtered_df = filtered_df[filtered_df[key].isin(value)]
+                if len(value) > 1:
+                    groupby_keys.append(key)
+        filtered_df["key"] = filtered_df[groupby_keys].apply(lambda x: "\n".join([str(i) for i in x.to_dict().values()]), axis=1)
+        if filtered_df is None:
+            return None
+        if search_str is not None and search_str != "":
+            search_index = state.search
+            for i in search_str.replace(" ", ",").split(","):
+                selection = search_index.str.contains(i)
+                filtered_df = filtered_df.loc[selection]
+                search_index = search_index[selection]
+        return filtered_df
 
-    # @app.callback(
-    #     Output('medias', 'children'),
-    #     [Input('global-search', 'value')] + \
-    #     [Input('dropdown-{}'.format(key), 'value') for key in dropdown_fields])
-    # def update_medias_clb(search_str, *dropdown_values):
-    #     df_files, groupby_keys = filter_df(*dropdown_values)
-    #     df_files = state.global_search(search_str, df_files)
-    #     keys = [key for key in state.file_id if key not in groupby_keys] + groupby_keys
+    @app.callback(
+        Output('medias', 'children'),
+        [Input('global-search', 'value')] + \
+        [Input('dropdown-{}'.format(key), 'value') for key in dropdown_fields])
+    def update_medias_clb(search_str, *dropdown_values):
+        dropdown_values = mask_dropdown_values(dropdown_values)
+        df_files, groupby_keys = filter_df(*dropdown_values)
+        df_files = global_search(*dropdown_values, search_str=search_str)
+        keys = [key for key in state.file_id if key not in groupby_keys] + groupby_keys
 
-    #     try:
-    #         df_files = df_files.fillna("")
-    #         df_files = pandas_db.latest(keys=keys, df=df_files).reset_index()
-    #         df_files = df_files.loc[(df_files.file!="") & (df_files.file != "?")]
-    #     except:
-    #         return None
-    #     return update_medias(state, df_files)
+        df_files = df_files.fillna("")
+        df_files = pandas_db.latest(keys=keys, df=df_files).reset_index()
+        df_files = df_files.loc[(df_files.file!="") & (df_files.file != "?")]
+        return update_medias(state, df_files)
 
     app.layout = dbc.Container([
         dropdowns,
         metrics_plots,
-        # detail_view
+        detail_view
     ])
     return app
 
@@ -141,9 +159,6 @@ def unsmask_dropdown_values(dropdown_values):
 
 
 def get_metric_plot(df, metrics, groupby_keys):
-    # vals = pd.DataFrame(df).reset_index()
-    # vals["key"] = vals[groupby_keys].apply(lambda x: "\n".join([str(i) for i in x.to_dict().values()]), axis=1)
-    # vals = df.loc[pd.to_numeric(df[metric], errors='coerce').notnull()]
     metric_plots = []
     vals = df.reset_index()
 
@@ -172,30 +187,6 @@ def get_metric_plot(df, metrics, groupby_keys):
         metric_plots += [html.Div([histograms, boxplots])]
     return metric_plots
 
-    mean_metrics = vals.aggregate(np.nanmean)
-
-    for metric in metrics:
-        mean_metric = mean_metrics.sort_values(metric)
-        ordered_keys = mean_metric.index.values
-        category_order = {"key": ordered_keys}
-        fig = go.Figure()
-        for keys in ordered_keys:
-            res = vals.get_group(keys)[metric].dropna().values
-            fig.add_trace(go.Histogram(x=res, name=keys, histnorm='probability'))
-        fig.update_layout(barmode='overlay')
-        fig.update_traces(opacity=min(1, 0.25 + 1/len(vals)))
-        fig.update_layout(
-            title=metric,
-            xaxis_title=metric,
-            yaxis_title="Count",
-        )
-        histograms = dcc.Graph(id=f"scatter-{metric}", figure=fig)
-        fig = px.box(vals.reset_index(), x="key", y=metric, category_orders=category_order, color="key")
-        boxplots = dcc.Graph(id=f"boxplot-{metric}", figure=fig)
-        metric_plots += [html.Div([histograms, boxplots])]
-    return metric_plots
-
-
 
 class State():
     """Class that caches the state of pandas_db and imlements transaction search"""
@@ -206,17 +197,6 @@ class State():
         self._transactions = None
         self.file_info = None
         self.fetch()
-    
-    def global_search(self, search_str="", dff=None):
-        dff = dff if dff is not None else self._transactions
-        if dff is None:
-            return None
-        if search_str is not None and search_str != "":
-            search_index = self.search
-            for i in search_str.replace(" ", ",").split(","):
-                dff = dff.loc[search_index.str.contains(i)]
-                search_index = search_index[search_index.str.contains(i)]
-        return dff
 
     def fetch(self):
         self._transactions = pandas_db.get_df()
@@ -257,7 +237,7 @@ def show_media(state, media_file, file_info):
             media = html.Img(src='data:image/png;base64,{}'.format(data), style={"height": "300px", "width": "auto"})
         if media_file.endswith(".wav"):
             media = html.Audio(src='data:audio/wav;base64,{}'.format(data), controls=True)
-    file_info = pd.DataFrame(file_info).T[state.file_id].T.reset_index()
+    file_info = file_info.dropna().reset_index()
     rename_cols = dict(zip(file_info.columns, ["key", "value"]))
     file_info = file_info.rename(columns=rename_cols)
     info = dash_table.DataTable(
