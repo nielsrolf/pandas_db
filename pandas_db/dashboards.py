@@ -25,72 +25,26 @@ else:
     pandas_db = PandasDB()
 
 
-@click.command()
-@click.argument("view_name")
-def main(view_name):
-    """entry point to start the app"""
-    with open(os.path.join(DEFAULT_PANDAS_DB_PATH, ".pandas_db_views.json")) as json_file:
-        views = json.load(json_file)
-    view = views[view_name]
-    app = init_app(keys=view['keys'], columns=view.get('columns'), file_id=view.get('file_id'))
-    app.run_server(host='0.0.0.0', port=8050, debug=("nielswarncke" in os.getcwd()))
 
-
-def jupyter(keys, columns, file_id, **server_args):
-    """Run the browser in a jupyter browser
+def get_dashboard(view: dict, df: pd.DataFrame, app: dash.Dash):
+    """Create a dashboard for a given (prefiltered) df and a view
     
     Arguments:
-        keys (List[str]): columns that you want to group information by
-        columns (List[str]): columns that hold metrics or other data,
-            where you want to see the latest info per group
-        file_id (List[str]): columns that together uniquely identify a file.
-            If multiple files exist per group, the latest is displayed
+        view (dict): defines which columns contain model params, metrics or define a file
+                     example is given in views.json
+        df (pd.DataFrame): (filtered) output of pd.get_df()
     """
-    app = init_app(keys=keys, columns=columns, file_id=file_id, jupyter=True)
-    app.run_server(**server_args)
+    state = State(view['keys'], view['columns'], view['file_id'], view['prefix'])
+    metrics_df = pandas_db.latest(keys=state.model_id, metrics=state.metrics, df=df)
 
-
-class State():
-    """Class that caches the state of pandas_db and imlements transaction search"""
-    def __init__(self, keys, columns, file_id):
-        self.keys = keys
-        self.columns = [c for c in columns if not c in self.keys]
-        self.file_id = file_id
-        self._transactions = None
-        self.file_info = None
-        self.fetch()
-
-    def fetch(self):
-        self._transactions = pandas_db.get_df()
-        self.file_info = pandas_db.latest(keys=["file"], df=self._transactions)
-        self.search = self.file_info.fillna("").reset_index()
-        self.search['search_index'] = self.search.apply(concat_as_str, axis=1)
-
-
-def concat_as_str(values):
-    return "".join([str(i) for i in values])
-
-
-def init_app(keys, columns, file_id, jupyter=False):
-    """Initialize the html structure of the app, such that later the
-    content can be filled via callback"""
-    state = State(keys, columns, file_id)
-    if not jupyter:
-        app = dash.Dash(__name__)
-    else:
-        app = JupyterDash(__name__)
-    
-    df = pandas_db.get_df()
-    metrics_df = pandas_db.latest(keys=keys, metrics=state.columns, df=df)
-
-    dropdown_fields_top = state.keys
-    dropdown_fields_files = [i for i in state.file_id if i not in state.keys]
+    dropdown_fields_top = state.model_id
+    dropdown_fields_files = [i for i in state.file_id if i not in state.model_id]
     dropdown_fields = dropdown_fields_top + dropdown_fields_files
     
     dropdowns_top =  html.Div(dbc.Row([
                     dbc.Col([
                         dcc.Dropdown(
-                            id=f"dropdown-{key}",
+                            id=f"{state.prefix}-dropdown-{key}",
                             options=[{'label': i, 'value': i} for i in list(df[key].dropna().unique()) if i != ""],
                             multi=True,
                             style={"font-size": "13px"},
@@ -99,14 +53,14 @@ def init_app(keys, columns, file_id, jupyter=False):
     dropdowns_files =  html.Div(dbc.Row([
                     dbc.Col([
                         dcc.Dropdown(
-                            id=f"dropdown-{key}",
+                            id=f"{state.prefix}-dropdown-{key}",
                             options=[{'label': i, 'value': i} for i in list(df[key].dropna().unique()) if i != ""],
                             multi=True,
                             style={"font-size": "13px"},
                             placeholder=key)
                     ], md=1) for key in dropdown_fields_files], align="center", no_gutters=True))
     
-    metrics_plots = html.Div(id='metrics-view')
+    metrics_plots = html.Div(id=f"{state.prefix}-metrics-view")
 
     @functools.lru_cache(maxsize=20)
     def filter_df(*dropdown_values):
@@ -122,30 +76,28 @@ def init_app(keys, columns, file_id, jupyter=False):
         return filtered_df, groupby_keys
 
     @app.callback(
-        Output('metrics-view', 'children'),
-        [Input('dropdown-{}'.format(key), 'value') for key in dropdown_fields_top])
+        Output(f"{state.prefix}-metrics-view", 'children'),
+        [Input(f"{state.prefix}-dropdown-{key}", 'value') for key in dropdown_fields_top])
     def get_metrics_view(*dropdown_values):
         dropdown_values = mask_dropdown_values(dropdown_values)
-        filtered_df, groupby_keys = filter_df(*dropdown_values)
-        return get_metric_plot(filtered_df, state.columns, groupby_keys)
+        filtered_df, _ = filter_df(*dropdown_values)
+        return get_metric_plot(filtered_df, state)
     
-    search = dcc.Input('global-search', type='text', style={
+    search = dcc.Input(f"{state.prefix}-global-search", type='text', style={
         "width": "100%", "height": "30px", "z-index": "10",
         "border": "2px solid #2cb2cb", "position": "fixed", "bottom": "1px"},
         placeholder="Keyword search: enter any number of words you'd like to search")
     
-    cheap_pagination_1 = dcc.Input('file_id_first', type='number', style={"display": "inline"}, placeholder="0")
-    cheap_pagination_2 = dcc.Input('file_id_last', type='number', style={"display": "inline"}, placeholder="5")
+    cheap_pagination_1 = dcc.Input(f"{state.prefix}-file_id_first", type='number', style={"display": "inline"}, placeholder="0")
+    cheap_pagination_2 = dcc.Input(f"{state.prefix}-file_id_last", type='number', style={"display": "inline"}, placeholder="5")
     pagination = html.Div([cheap_pagination_1, " - ", cheap_pagination_2], style={"margin": "auto", "width": "400px"})
 
     detail_view = html.Div([
         dropdowns_files,
         pagination,
         search,
-        dcc.Loading(html.Div(id='medias'))],
-        style={
-                "width": "100%",
-                "bottom": "30px"})
+        dcc.Loading(html.Div(id=f"{state.prefix}-medias", style={"min-height": "100px"}))],
+        style={"width": "100%", "bottom": "30px"})
     @functools.lru_cache(maxsize=20)
     def global_search(*dropdown_values, search_str=""):
         dropdown_values = unsmask_dropdown_values(dropdown_values)
@@ -170,9 +122,11 @@ def init_app(keys, columns, file_id, jupyter=False):
         return filtered_df, groupby_keys
 
     @app.callback(
-        Output('medias', 'children'),
-        [Input('global-search', 'value'), Input('file_id_first', 'value'), Input('file_id_last', 'value')] + \
-        [Input('dropdown-{}'.format(key), 'value') for key in dropdown_fields])
+        Output(f"{state.prefix}-medias", 'children'),
+        [Input(f"{state.prefix}-global-search", 'value'),
+        Input(f"{state.prefix}-file_id_first", 'value'),
+        Input(f"{state.prefix}-file_id_last", 'value')] + \
+        [Input(f"{state.prefix}-dropdown-{key}", 'value') for key in dropdown_fields])
     def update_medias_clb(search_str, file_id_first, file_id_last, *dropdown_values):
         dropdown_values = mask_dropdown_values(dropdown_values)
         df_files , groupby_keys = global_search(*dropdown_values, search_str=search_str)
@@ -186,12 +140,64 @@ def init_app(keys, columns, file_id, jupyter=False):
         rel_paths = df_files["file"].values[(file_id_first or 0):(file_id_last or 5)]
         return update_medias(state, rel_paths)
 
-    app.layout = dbc.Container([
+    return dbc.Container([
         dropdowns_top,
         metrics_plots,
         detail_view
     ])
-    return app
+    
+
+
+
+@click.command()
+@click.argument("view_name")
+def main(view_name):
+    """entry point to start the app"""
+    with open(os.path.join(DEFAULT_PANDAS_DB_PATH, ".pandas_db_views.json")) as json_file:
+        views = json.load(json_file)
+    view = views[view_name]
+    app = dash.Dash(__name__)
+    df = pandas_db.get_df()
+    app.layout = get_dashboard(view, df, app)
+    app.run_server(host='0.0.0.0', port=8050, debug=("nielswarncke" in os.getcwd()))
+
+
+def jupyter(view, **server_args):
+    """Run the browser in a jupyter browser
+    
+    Arguments:
+        keys (List[str]): columns that you want to group information by
+        columns (List[str]): columns that hold metrics or other data,
+            where you want to see the latest info per group
+        file_id (List[str]): columns that together uniquely identify a file.
+            If multiple files exist per group, the latest is displayed
+    """
+    app = JupyterDash(__name__)
+    df = pandas_db.get_df()
+    app.layout = get_dashboard(view, df, app)
+    app.run_server(**server_args)
+
+
+class State():
+    """Class that caches the state of pandas_db and imlements transaction search"""
+    def __init__(self, model_id, metrics, file_id, prefix):
+        self.prefix = prefix
+        self.model_id = model_id
+        self.metrics = [c for c in metrics if not c in self.model_id]
+        self.file_id = file_id
+        self._transactions = None
+        self.file_info = None
+        self.fetch()
+
+    def fetch(self):
+        self._transactions = pandas_db.get_df()
+        self.file_info = pandas_db.latest(keys=["file"], df=self._transactions)
+        self.search = self.file_info.fillna("").reset_index()
+        self.search['search_index'] = self.search.apply(concat_as_str, axis=1)
+
+
+def concat_as_str(values):
+    return "".join([str(i) for i in values])
 
 
 def mask_dropdown_values(dropdown_values):
@@ -203,7 +209,7 @@ def unsmask_dropdown_values(dropdown_values):
     return [i.split("||") if isinstance(i, str) else i for i in dropdown_values]
 
 
-def get_metric_plot(df, metrics, groupby_keys):
+def get_metric_plot(df, state):
     metric_plots = []
     vals = df.reset_index()
 
@@ -211,7 +217,7 @@ def get_metric_plot(df, metrics, groupby_keys):
         return None
 
     mean_metrics = vals.groupby("key").aggregate(np.nanmean)
-    for metric in metrics:
+    for metric in state.metrics:
         mean_metric = mean_metrics.sort_values(metric)
         ordered_keys = mean_metric.index.values
         category_order = {"key": ordered_keys}
@@ -226,9 +232,9 @@ def get_metric_plot(df, metrics, groupby_keys):
             xaxis_title=metric,
             yaxis_title="Density",
         )
-        histograms = dcc.Graph(id=f"scatter-{metric}", figure=fig)
+        histograms = dcc.Graph(id=f"{state.prefix}-scatter-{metric}", figure=fig)
         fig = px.box(vals, x="key", y=metric, category_orders=category_order, color="key")
-        boxplots = dcc.Graph(id=f"boxplot-{metric}", figure=fig)
+        boxplots = dcc.Graph(id=f"{state.prefix}-boxplot-{metric}", figure=fig)
         metric_plots += [html.Div([histograms, boxplots])]
     return metric_plots
 

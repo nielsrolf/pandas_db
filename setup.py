@@ -13,7 +13,7 @@ setup(
     install_requires=["pandas", "plotly", "dash", "dash-extensions", "click", "jupyter-dash", "dash-bootstrap-components"],
     extras_require={"test": ["pytest", "pylint!=2.5.0"],},
     entry_points={"console_scripts": [
-        'pandasdb = pandas_db.browser2:main'
+        'pandasdb = pandas_db.dashboards:main'
     ],},
     classifiers=[],
     tests_require=["pytest"],

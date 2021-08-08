@@ -1,3 +1,2 @@
 from pandas_db.pandas_db import PandasDB, DEFAULT_PANDAS_DB_PATH, pandas_db, maybe_float
-from pandas_db import browser
-from pandas_db import browser2
+from pandas_db import dashboards
