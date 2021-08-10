@@ -4,4 +4,5 @@ pip install -e .
 python ec2/migrate_pandasdb.py
 cp pandas_db/views.json $PANDAS_DB_PATH/.pandas_db_views.json
 sudo kill -9 $(sudo lsof -t -i:8050)
-pandasdb metrics2 &
+# pandasdb metrics2 &
+python reports/thesis.py

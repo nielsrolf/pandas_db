@@ -8,6 +8,9 @@ import pathlib
 from glob import glob
 
 
+import numpy as np
+
+
 DEFAULT_PANDAS_DB_PATH = os.environ.get("PANDAS_DB_PATH", ".")
 
 
@@ -53,15 +56,18 @@ class PandasDB():
         cols = df.columns
         if keys is None:
             keys = [c for c in cols if not c in metrics and c != "pandas_db.created"]
+        if metrics is None:
+            metrics = [c for c in cols if not c in keys]
         def latest_entry(values):
-            values = values.values if isinstance(values, pd.Series) else values
+            # values = values.values if isinstance(values, pd.Series) else values
             values = values[(values!=na_placeholder) & (values!="")]
             if len(values) == 0:
                 return None
-            return values[-1]
+            return values.iloc[-1]
+            
         df = df.sort_values("pandas_db.created")\
                 .groupby(keys)\
-                .aggregate(latest_entry)
+                .aggregate({c: latest_entry for c in metrics})
         if metrics is None:
             return df
         return df[metrics]

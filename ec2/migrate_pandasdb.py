@@ -10,7 +10,7 @@ df = pd.read_csv(pandas_db_csv_path)
 def get_train_dataset(model):
     if not isinstance(model, str) or model == "*":
         return None
-    options = ["sh101_train", "urmp_train", "idmt_drum_train", "combined_train", "guitar_train", "bass_train"]
+    options = ["sh101_train", "urmp_train", "idmt_drum_train", "combined_train", "guitar_train", "bass_train", "drums_train"]
     for option in options:
         if option in model:
             return option
@@ -23,7 +23,7 @@ def get_test_dataset(row):
     if isinstance(row['dataset'], str) and row['dataset'] != "":
         return row["dataset"]
     
-    options = ["sh101_test", "urmp_test", "idmt_drum_test", "combined_test", "guitar_test", "bass_test"]
+    options = ["sh101_test", "urmp_test", "idmt_drum_test", "combined_test", "guitar_test", "bass_test", "drums_train"]
     src = row['tag']
     if isinstance(src, str):
         for option in options:

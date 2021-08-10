@@ -34,7 +34,7 @@ def get_dashboard(view: dict, df: pd.DataFrame, app: dash.Dash):
                      example is given in views.json
         df (pd.DataFrame): (filtered) output of pd.get_df()
     """
-    state = State(view['keys'], view['columns'], view['file_id'], view['prefix'])
+    state = State(view['keys'], view['columns'], view['file_id'], view['prefix'], df)
     metrics_df = pandas_db.latest(keys=state.model_id, metrics=state.metrics, df=df)
 
     dropdown_fields_top = state.model_id
@@ -60,7 +60,7 @@ def get_dashboard(view: dict, df: pd.DataFrame, app: dash.Dash):
                             placeholder=key)
                     ], md=1) for key in dropdown_fields_files], align="center", no_gutters=True))
     
-    metrics_plots = html.Div(id=f"{state.prefix}-metrics-view")
+    metrics_plots = dcc.Loading(id=f"{state.prefix}-metrics-view", style={'min-height': '100px'})
 
     @functools.lru_cache(maxsize=20)
     def filter_df(*dropdown_values):
@@ -180,18 +180,12 @@ def jupyter(view, **server_args):
 
 class State():
     """Class that caches the state of pandas_db and imlements transaction search"""
-    def __init__(self, model_id, metrics, file_id, prefix):
+    def __init__(self, model_id, metrics, file_id, prefix, df):
         self.prefix = prefix
         self.model_id = model_id
         self.metrics = [c for c in metrics if not c in self.model_id]
         self.file_id = file_id
-        self._transactions = None
-        self.file_info = None
-        self.fetch()
-
-    def fetch(self):
-        self._transactions = pandas_db.get_df()
-        self.file_info = pandas_db.latest(keys=["file"], df=self._transactions)
+        self.file_info = pandas_db.latest(keys=["file"], df=df)
         self.search = self.file_info.fillna("").reset_index()
         self.search['search_index'] = self.search.apply(concat_as_str, axis=1)
 
