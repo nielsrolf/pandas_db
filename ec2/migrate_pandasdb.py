@@ -121,6 +121,15 @@ def get_fine_tune(fine_tune):
 df['fine_tune'] = df['fine_tune'].apply(get_fine_tune)
 
 
+def baseline_or_improved(model):
+    if "improved" in model:
+        return "improved"
+    if "baseline" in model:
+        return "baseline"
+    return ""
+df['baseline_or_improved'] = df.model.apply(baseline_or_improved)
+
+
 check_cols = ["loss_function", "z_aggregation", "loudness_algorithm", "crepe_f0", "train_data", "test_data_src"]
 for col in check_cols:
     print(col, df.loc[df[col].isnull()].model.unique())

@@ -48,6 +48,7 @@ def get_dashboard(view: dict, df: pd.DataFrame, app: dash.Dash):
                             options=[{'label': i, 'value': i} for i in list(df[key].dropna().unique()) if i != ""],
                             multi=True,
                             style={"font-size": "13px"},
+                            value=view['default_selection'].get(key),
                             placeholder=key)
                     ], md=1) for key in dropdown_fields_top], align="center", no_gutters=True))
     dropdowns_files =  html.Div(dbc.Row([
@@ -57,6 +58,7 @@ def get_dashboard(view: dict, df: pd.DataFrame, app: dash.Dash):
                             options=[{'label': i, 'value': i} for i in list(df[key].dropna().unique()) if i != ""],
                             multi=True,
                             style={"font-size": "13px"},
+                            value=view['default_selection'].get(key),
                             placeholder=key)
                     ], md=1) for key in dropdown_fields_files], align="center", no_gutters=True))
     
@@ -159,7 +161,7 @@ def main(view_name):
     app = dash.Dash(__name__)
     df = pandas_db.get_df()
     app.layout = get_dashboard(view, df, app)
-    app.run_server(host='0.0.0.0', port=8050, debug=("nielswarncke" in os.getcwd()))
+    app.run_server(host='0.0.0.0', port=8040, debug=("nielswarncke" in os.getcwd()))
 
 
 def jupyter(view, **server_args):
