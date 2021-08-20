@@ -4,6 +4,12 @@
         "file_id": ["test_data_src", "audio_type", "plot_type", "s", "melody", "timbre", "model", "sample_idx"],
         "columns": ["unskewed_spectral_loss", "spectral_loss", "reconstruction_loss", "cycle_reconstruction_loss"],
         "prefix": "ddsp-example-dashboard",
+        "file_references": {
+            "audio_file": "https://pandasdb-ddsp-demo.s3.eu-central-1.amazonaws.com/.pandas_db_files",
+            "timbre": "https://pandasdb-ddsp-demo.s3.eu-central-1.amazonaws.com/.pandas_db_files",
+            "melody": "https://pandasdb-ddsp-demo.s3.eu-central-1.amazonaws.com/.pandas_db_files",
+            "intermediate": "https://pandasdb-ddsp-demo.s3.eu-central-1.amazonaws.com/.pandas_db_files"
+        },
         "default_selection": {}
     },
     "new": {

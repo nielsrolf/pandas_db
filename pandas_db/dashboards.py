@@ -34,7 +34,7 @@ def get_dashboard(view: dict, df: pd.DataFrame, app: dash.Dash):
                      example is given in views.json
         df (pd.DataFrame): (filtered) output of pd.get_df()
     """
-    state = State(view['keys'], view['columns'], view['file_id'], view['prefix'], df)
+    state = State(view['keys'], view['columns'], view['file_id'], view.get('file_references', {}), view['prefix'], df)
     metrics_df = pandas_db.latest(keys=state.model_id, metrics=state.metrics, df=df)
 
     dropdown_fields_top = state.model_id
@@ -182,7 +182,7 @@ def jupyter(view, **server_args):
 
 class State():
     """Class that caches the state of pandas_db and imlements transaction search"""
-    def __init__(self, model_id, metrics, file_id, prefix, df):
+    def __init__(self, model_id, metrics, file_id, file_references, prefix, df):
         self.prefix = prefix
         self.model_id = model_id
         self.metrics = [c for c in metrics if not c in self.model_id]
@@ -190,6 +190,7 @@ class State():
         self.file_info = pandas_db.latest(keys=["file"], df=df)
         self.search = self.file_info.fillna("").reset_index()
         self.search['search_index'] = self.search.apply(concat_as_str, axis=1)
+        self.file_references = file_references
 
 
 def concat_as_str(values):
@@ -240,45 +241,30 @@ def update_medias(state, rel_paths):
     for rel_path in rel_paths:
         try:
             file_info = state.file_info.loc[rel_path]
-            medias += [show_media(rel_path, file_info)]
+            medias += [show_media(state, rel_path, file_info)]
         except (KeyError, FileNotFoundError, IndexError) as e:
             print(e)
             pass
     return medias
 
 
-def show_media(media_file, file_info):
-    if os.environ.get("PANDAS_DB_S3_PREFIX") is not None:
-        if media_file.endswith(".png"):
-            media = html.Img(src=f"{os.environ.get('PANDAS_DB_S3_PREFIX')}.pandas_db_files/{media_file}", style={"height": "300px", "width": "auto"})
-        elif media_file.endswith(".wav"):
-            media = html.Audio(src=f"{os.environ.get('PANDAS_DB_S3_PREFIX')}.pandas_db_files/{media_file}", controls=True)
-        else:
-            media = "Not found"
-    else:
-        media_file = os.path.join(DEFAULT_PANDAS_DB_PATH, ".pandas_db_files", media_file)
-        data = str(base64.b64encode(open(media_file, 'rb').read()))[2:-1]
-        media = None
-        if media_file.endswith(".png"):
-            media = html.Img(src='data:image/png;base64,{}'.format(data), style={"height": "300px", "width": "auto"})
-        if media_file.endswith(".wav"):
-            media = html.Audio(src='data:audio/wav;base64,{}'.format(data), controls=True)
-    file_info = file_info.dropna().reset_index()
-    rename_cols = dict(zip(file_info.columns, ["key", "value"]))
-    file_info = file_info.rename(columns=rename_cols)
-    info = dash_table.DataTable(
-        columns = [{"name": "", "id": "key"}, {"name": "", "id": "value"}],
-        data=file_info.to_dict('records'),
-        style_cell={'padding': '5px', 'width': "100px", "border": "0px"},
-        style_cell_conditional=[
-            {
-                'if': {'column_id': 'value'},
-                'textAlign': 'left'
-            }
-        ],
-        style_header = {'display': 'none'}
-    )
-    return html.Div([html.Div(info, style={"flex": "50%"}),
+def show_media(state, media_file, file_info):
+    media = resolve_and_render(media_file)
+    table_rows = []
+    for key, value in file_info.to_dict().items():
+        if value is None or str(value)=="nan":
+            continue
+        if key in state.file_references.keys() and (str(value).endswith(".png") 
+                                                or str(value).endswith(".wav")):
+            value_path = f"{state.file_references[key]}/{value}"
+            value_rendered = render_remote_or_local_path(value_path)
+            value = html.Div([value_rendered, value])
+        row = html.Tr([html.Td(key), html.Td(value)])
+        table_rows.append(row)
+    
+    data_table = html.Table(table_rows)
+
+    return html.Div([html.Div(data_table, style={"flex": "50%"}),
                         html.Div(media, style={
                             "flex": "50%",
                             "height": "300px",
@@ -292,7 +278,38 @@ def show_media(media_file, file_info):
                             "margin-bottom": "5px", "margin-top": "5px"})
 
 
+def resolve_and_render(media_file):
+    if os.environ.get("PANDAS_DB_S3_PREFIX") is not None:
+        return render_s3(f"{os.environ.get('PANDAS_DB_S3_PREFIX')}.pandas_db_files/{media_file}")
+    else:
+        return render_local(os.path.join(DEFAULT_PANDAS_DB_PATH, ".pandas_db_files", media_file))
 
+
+def render_s3(src):
+    if src.endswith(".png"):
+        media = html.Img(src=src, style={"height": "300px", "width": "auto"})
+    elif src.endswith(".wav"):
+        media = html.Audio(src=src, controls=True)
+    else:
+        media = "Not found"
+    return media
+
+
+def render_local(media_file):
+    data = str(base64.b64encode(open(media_file, 'rb').read()))[2:-1]
+    media = None
+    if media_file.endswith(".png"):
+        media = html.Img(src='data:image/png;base64,{}'.format(data), style={"height": "300px", "width": "auto"})
+    if media_file.endswith(".wav"):
+        media = html.Audio(src='data:audio/wav;base64,{}'.format(data), controls=True)
+    return media
+
+
+def render_remote_or_local_path(media_file):
+    if os.path.exists(media_file):
+        return render_local(media_file)
+    else:
+        return render_s3(media_file)
 
 
 if __name__ == '__main__':

@@ -23,12 +23,15 @@ else:
     pandas_db = PandasDB()
 
 
+samples_path = "https://pandasdb-ddsp-demo.s3.eu-central-1.amazonaws.com/.pandas_db_files"
+
+
 def main():
     """entry point to start the app"""
     app = dash.Dash(__name__)
     app.layout = html.Div([
-        # get_experiment_1(app),
-        # get_experiment_2(app),
+        get_experiment_1(app),
+        get_experiment_2(app),
         get_experiment_3(app)
     ])
     app.run_server(host='0.0.0.0', port=8050, debug=("nielswarncke" in os.getcwd()))
@@ -55,6 +58,12 @@ def get_experiment_1(app):
             "z_aggregation": ["none", "mean", "groupwise"],
             "audio_type": ["cycled"],
             "audio_file": ["samples/urmp_test/AuSep_2_fl_14_Waltz.wav"]
+        },
+        "file_references": {
+            "audio_file": samples_path,
+            "timbre": samples_path,
+            "melody": samples_path,
+            "intermediate": samples_path
         },
         "prefix": "experiment_1",
         "keys": ["z_aggregation"],
@@ -99,6 +108,12 @@ def get_experiment_2(app):
             "audio_file": ["samples/urmp_test/AuSep_2_fl_14_Waltz.wav"],
             "model": ['loudness_and_loss_autoencoder_old_loudness_spectral_loss_urmp_train', 'loudness_and_loss_autoencoder_new_loudness_unskewed_loss_urmp_train']
         },
+        "file_references": {
+            "audio_file": samples_path,
+            "timbre": samples_path,
+            "melody": samples_path,
+            "intermediate": samples_path
+        },
         "prefix": "experiment_2",
         "keys": ["loudness_algorithm", "loss_function"],
         "file_id": ["audio_file", "audio_type", "plot_type", "s", "melody", "timbre", "intermediate", "model"],
@@ -129,6 +144,12 @@ def get_experiment_3(app):
                 & ( (df['s']=="100.0") | (df['plot_type'].isnull()) )]
     view = {
         "prefix": "experiment_3",
+        "file_references": {
+            "audio_file": samples_path,
+            "timbre": samples_path,
+            "melody": samples_path,
+            "intermediate": samples_path
+        },
         "default_selection": {
             "audio_type": ["cyled"],
             "train_data": ["sh101_train", "combined_train"],
