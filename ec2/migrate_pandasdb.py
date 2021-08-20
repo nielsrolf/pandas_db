@@ -5,6 +5,7 @@ import numpy as np
 
 pandas_db_csv_path = os.path.join(pandas_db.path, ".local_db.csv")
 df = pd.read_csv(pandas_db_csv_path)
+# breakpoint()
 
 # train_data_set
 def get_train_dataset(model):
@@ -18,17 +19,17 @@ def get_train_dataset(model):
 
 df['train_data'] = df['model'].apply(get_train_dataset)
 
+
+df['model'] = df['model'].str.replace('/mnt/raid/ni/niels/s3/models/', '')
+
 # test_data
-def get_test_dataset(row):
-    if isinstance(row['dataset'], str) and row['dataset'] != "":
-        return row["dataset"]
+def get_test_data_group(row):
+    if 'dataset' in row:
+        if isinstance(row['dataset'], str) and row['dataset'] != "":
+            return row["dataset"]
     
     options = ["sh101_test", "urmp_test", "idmt_drum_test", "combined_test", "guitar_test", "bass_test", "drums_train"]
-    src = row['tag']
-    if isinstance(src, str):
-        for option in options:
-            if option in src:
-                return option
+
     src = row['audio_file']
     if isinstance(src, str):
         for option in options:
@@ -36,7 +37,17 @@ def get_test_dataset(row):
                 return option
     return None
 
-df['test_data'] = df.apply(get_test_dataset, axis=1)
+df['test_data_group'] = df.apply(get_test_data_group, axis=1)
+
+
+# audio src
+def get_test_data_src(row):
+    if 'dataset' in row:
+        if isinstance(row['dataset'], str) and row['dataset'] != "":
+            return row["dataset"]
+    return row['audio_file']
+df['test_data_src'] = df.apply(get_test_data_src, axis=1)
+
 
 # loss_function
 def get_loss_function(model):
@@ -104,9 +115,16 @@ def get_crepe_f0(model):
     return "CREPE not used" if "no_crepe" in model else "CREPE used"
 df['crepe_f0'] = df['model'].apply(get_crepe_f0)
 
+# Fine-tuning
+def get_fine_tune(fine_tune):
+    return "fine-tuning used" if fine_tune == 1.0 else "fine-tuning not used"
+df['fine_tune'] = df['fine_tune'].apply(get_fine_tune)
 
-check_cols = ["loss_function", "z_aggregation", "loudness_algorithm", "crepe_f0", "train_data", "test_data"]
+
+check_cols = ["loss_function", "z_aggregation", "loudness_algorithm", "crepe_f0", "train_data", "test_data_src"]
 for col in check_cols:
     print(col, df.loc[df[col].isnull()].model.unique())
+
+
 
 df.to_csv(os.path.join(pandas_db.path, "migrated.csv"), index=False)
