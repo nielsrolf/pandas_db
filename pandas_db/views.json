@@ -1,8 +1,20 @@
 {
     "metrics": {
-        "keys": ["train_data", "z_aggregation", "crepe_f0", "loudness_algorithm", "loss_function", "test_data", "audio_file"],
-        "file_id": ["audio_file", "test_data", "tag", "sample_idx", "audio_type", "plot_type", "s", "melody", "timbre", "model"],
+        "keys": ["train_data", "z_aggregation", "crepe_f0", "loudness_algorithm", "loss_function", "test_data_src", "test_data_group"],
+        "file_id": ["test_data_src", "audio_type", "plot_type", "s", "melody", "timbre", "model", "sample_idx"],
         "columns": ["unskewed_spectral_loss", "spectral_loss", "reconstruction_loss", "cycle_reconstruction_loss"],
         "prefix": "ddsp-example-dashboard"
+    },
+    "new": {
+        "global_keys": {
+            "Model": ["model", "train_data", "z_aggregation", "crepe_f0", "loudness_algorithm", "loss_function"]
+        },
+        "metric_keys": {
+            "Test Data": ["test_data", "audio_file"]
+        },
+        "metrics": ["unskewed_spectral_loss", "spectral_loss", "reconstruction_loss", "cycle_reconstruction_loss"],
+        "file_keys": {
+            "Original audio": ["test_data", "sample_idx", "audio_file"]
+        }
     }
 }
