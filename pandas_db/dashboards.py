@@ -36,6 +36,7 @@ def get_dashboard(view: dict, df: pd.DataFrame, app: dash.Dash):
     """
     state = State(view['keys'], view['columns'], view['file_id'], view.get('file_references', {}), view['prefix'], df)
     metrics_df = pandas_db.latest(keys=state.model_id, metrics=state.metrics, df=df)
+    full_df = pandas_db.latest(keys=list(set(state.model_id + state.file_id)), df=df)
 
     dropdown_fields_top = state.model_id
     dropdown_fields_files = [i for i in state.file_id if i not in state.model_id]
@@ -61,17 +62,24 @@ def get_dashboard(view: dict, df: pd.DataFrame, app: dash.Dash):
                             value=view['default_selection'].get(key),
                             placeholder=key)
                     ], md=1) for key in dropdown_fields_files], align="center", no_gutters=True))
+
     
     metrics_plots = dcc.Loading(id=f"{state.prefix}-metrics-view", style={'min-height': '100px'})
 
     @functools.lru_cache(maxsize=20)
-    def filter_df(*dropdown_values):
+    def filter_df(*dropdown_values, use_full_df=False):
         dropdown_values = unsmask_dropdown_values(dropdown_values)
         groupby_keys = []
-        filtered_df = metrics_df.reset_index()
+        if use_full_df:
+            filtered_df = full_df.reset_index()
+        else:
+            filtered_df = metrics_df.reset_index()
         for key, value in zip(dropdown_fields[:len(dropdown_values)], dropdown_values):
             if value is not None and len(value) > 0:
-                filtered_df = filtered_df[filtered_df[key].isin(value)]
+                try:
+                    filtered_df = filtered_df[filtered_df[key].isin(value)]
+                except:
+                    breakpoint()
                 if len(value) > 1:
                     groupby_keys.append(key)
         filtered_df["key"] = filtered_df[groupby_keys].apply(lambda x: "\n".join([str(i) for i in x.to_dict().values()]), axis=1)
@@ -141,6 +149,28 @@ def get_dashboard(view: dict, df: pd.DataFrame, app: dash.Dash):
         df_files = df_files.loc[(df_files.file!="") & (df_files.file != "?")]
         rel_paths = df_files["file"].values[(file_id_first or 0):(file_id_last or 5)]
         return update_medias(state, rel_paths)
+    
+    
+    for field in dropdown_fields:
+        # the default value is evaluated at definition time, otherwise
+        # field will always be set to the last value of the loop at execution time
+        # therefore it is fixed as kwarg
+        def hide_field(*dropdown_values, field=field): 
+            value = dict(zip(dropdown_fields, dropdown_values))[field]
+            if value is not None and value != "":
+                return {"font-size": "13px", "visibility": "visible"}
+            dropdown_values = mask_dropdown_values(dropdown_values)
+            df, _ = filter_df(*dropdown_values, use_full_df=True)
+            if len(df[field].unique()) < 2:
+                return {"font-size": "13px", "visibility": "hidden"}
+            else:
+                print(field, df[field].unique())
+                return {"font-size": "13px", "visibility": "visible"}
+        app.callback(
+            Output(f"{state.prefix}-dropdown-{field}", 'style'),
+            [Input(f"{state.prefix}-dropdown-{key}", 'value') for key in dropdown_fields]
+                )(hide_field)
+
 
     return dbc.Container([
         dropdowns_top,
@@ -161,7 +191,7 @@ def main(view_name):
     app = dash.Dash(__name__)
     df = pandas_db.get_df()
     app.layout = get_dashboard(view, df, app)
-    app.run_server(host='0.0.0.0', port=8040, debug=("nielswarncke" in os.getcwd()))
+    app.run_server(host='0.0.0.0', port=8050, debug=("nielswarncke" in os.getcwd()))
 
 
 def jupyter(view, **server_args):

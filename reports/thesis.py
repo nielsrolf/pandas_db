@@ -67,7 +67,7 @@ def get_experiment_1(app):
         },
         "prefix": "experiment_1",
         "keys": ["z_aggregation"],
-        "file_id": ["audio_file", "audio_type", "s", "intermediate", "model"],
+        "file_id": ["test_data_src", "audio_type", "timbre", "melody", "s", "intermediate", "model"],
         "columns": ["unskewed_spectral_loss",  "cycle_reconstruction_loss"],
     }
 
