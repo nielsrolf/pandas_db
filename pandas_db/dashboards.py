@@ -164,7 +164,6 @@ def get_dashboard(view: dict, df: pd.DataFrame, app: dash.Dash):
             if len(df[field].unique()) < 2:
                 return {"font-size": "13px", "visibility": "hidden"}
             else:
-                print(field, df[field].unique())
                 return {"font-size": "13px", "visibility": "visible"}
         app.callback(
             Output(f"{state.prefix}-dropdown-{field}", 'style'),
@@ -285,7 +284,8 @@ def show_media(state, media_file, file_info):
         if value is None or str(value)=="nan":
             continue
         if key in state.file_references.keys() and (str(value).endswith(".png") 
-                                                or str(value).endswith(".wav")):
+                                                or str(value).endswith(".wav")
+                                                 or str(value).endswith(".mp3")):
             value_path = f"{state.file_references[key]}/{value}"
             value_rendered = render_remote_or_local_path(value_path)
             value = html.Div([value_rendered, value])
@@ -318,7 +318,7 @@ def resolve_and_render(media_file):
 def render_s3(src):
     if src.endswith(".png"):
         media = html.Img(src=src, style={"height": "300px", "width": "auto"})
-    elif src.endswith(".wav"):
+    elif src.endswith(".wav") or src.endswith(".mp3"):
         media = html.Audio(src=src, controls=True)
     else:
         media = "Not found"
