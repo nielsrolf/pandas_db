@@ -34,7 +34,7 @@ def get_dashboard(view: dict, df: pd.DataFrame, app: dash.Dash):
                      example is given in views.json
         df (pd.DataFrame): (filtered) output of pd.get_df()
     """
-    state = State(view['keys'], view['columns'], view['file_id'], view.get('file_references', {}), view['prefix'], df)
+    state = State(view['keys'], view['columns'], view['file_id'], view.get('file_references', {}), view['prefix'], df, view.get("s3_prefix"))
     metrics_df = pandas_db.latest(keys=state.model_id, metrics=state.metrics, df=df)
     full_df = pandas_db.latest(keys=list(set(state.model_id + state.file_id)), df=df)
 
@@ -211,7 +211,7 @@ def jupyter(view, **server_args):
 
 class State():
     """Class that caches the state of pandas_db and imlements transaction search"""
-    def __init__(self, model_id, metrics, file_id, file_references, prefix, df):
+    def __init__(self, model_id, metrics, file_id, file_references, prefix, df, s3_prefix=None):
         self.prefix = prefix
         self.model_id = model_id
         self.metrics = [c for c in metrics if not c in self.model_id]
@@ -220,6 +220,7 @@ class State():
         self.search = self.file_info.fillna("").reset_index()
         self.search['search_index'] = self.search.apply(concat_as_str, axis=1)
         self.file_references = file_references
+        self.s3_prefix = s3_prefix or os.environ.get('PANDAS_DB_S3_PREFIX')
 
 
 def concat_as_str(values):
@@ -278,7 +279,7 @@ def update_medias(state, rel_paths):
 
 
 def show_media(state, media_file, file_info):
-    media = resolve_and_render(media_file)
+    media = resolve_and_render(media_file, state.s3_prefix)
     table_rows = []
     for key, value in file_info.to_dict().items():
         if value is None or str(value)=="nan":
@@ -308,9 +309,9 @@ def show_media(state, media_file, file_info):
                             "margin-bottom": "5px", "margin-top": "5px"})
 
 
-def resolve_and_render(media_file):
-    if os.environ.get("PANDAS_DB_S3_PREFIX") is not None:
-        return render_s3(f"{os.environ.get('PANDAS_DB_S3_PREFIX')}.pandas_db_files/{media_file}")
+def resolve_and_render(media_file, s3_prefix):
+    if s3_prefix is not None:
+        return render_s3(f"{s3_prefix}.pandas_db_files/{media_file}")
     else:
         return render_local(os.path.join(DEFAULT_PANDAS_DB_PATH, ".pandas_db_files", media_file))
 

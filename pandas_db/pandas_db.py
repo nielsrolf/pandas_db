@@ -109,6 +109,11 @@ class PandasDB():
                 self.save_dir(self, added_from_dir=dir_path, **data)
             else:
                 self.save_artifact(file, **data)
+    
+    def get_artifact_location(self, row):
+        return os.path.join(self.path,
+                            ".pandas_db_files",
+                            row['file'])
 
 
 pandas_db = PandasDB()

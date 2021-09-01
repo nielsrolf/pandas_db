@@ -3,9 +3,9 @@ import pandas as pd
 from pandas_db import pandas_db
 import numpy as np
 
-pandas_db_csv_path = os.path.join(pandas_db.path, ".local_db.csv")
+pandas_db_csv_path = os.path.join(pandas_db.path, ".local_db.csv") #  pandas_db.path
 df = pd.read_csv(pandas_db_csv_path)
-# breakpoint()
+
 
 # train_data_set
 def get_train_dataset(model):
@@ -21,14 +21,18 @@ df['train_data'] = df['model'].apply(get_train_dataset)
 
 
 df['model'] = df['model'].str.replace('/mnt/raid/ni/niels/s3/models/', '')
+df['model'] = df['model'].str.replace('/content/drive/MyDrive/ddsp/models/', '')
+df['model'] = df['model'].str.replace('improved_baseline_ae_combined_train/', 'improved_baseline_ae_combined_train')
 
+df['audio_file'] = df['audio_file'].str.replace('/content/drive/MyDrive/ddsp/', '')
+df['intermediate'] = df['intermediate'].str.replace('/content/drive/MyDrive/ddsp/', '')
 # test_data
 def get_test_data_group(row):
     if 'dataset' in row:
         if isinstance(row['dataset'], str) and row['dataset'] != "":
             return row["dataset"]
     
-    options = ["sh101_test", "urmp_test", "idmt_drum_test", "combined_test", "guitar_test", "bass_test", "drums_train"]
+    options = ["sh101_test", "urmp_test", "idmt_drum_test", "combined_test", "guitar_test", "bass_test", "drums_train", "piano"]
 
     src = row['audio_file']
     if isinstance(src, str):
@@ -117,7 +121,12 @@ df['crepe_f0'] = df['model'].apply(get_crepe_f0)
 
 # Fine-tuning
 def get_fine_tune(fine_tune):
-    return "fine-tuning used" if fine_tune == 1.0 else "fine-tuning not used"
+    if fine_tune == '1.0' or fine_tune=='fine-tuning used':
+        return "fine-tuning used"
+    if fine_tune == "fine-tuning used (fair comparison)":
+        return "fine-tuning not used (fair comparison)"
+    return "fine-tuning not used"
+    
 df['fine_tune'] = df['fine_tune'].apply(get_fine_tune)
 
 
@@ -134,6 +143,18 @@ check_cols = ["loss_function", "z_aggregation", "loudness_algorithm", "crepe_f0"
 for col in check_cols:
     print(col, df.loc[df[col].isnull()].model.unique())
 
+df['s'] = None
+df.loc[df.audio_file.str.endswith('.png'), 's'] = '100.0'
+df['plot_type'] = df.s.apply(lambda x: 'error_heatmap' if x == '100.0' else None)
 
 
+df["cycle_reconstruction_loss"] = None
+df.loc[df['audio_type']=='cycled', 'cycle_reconstruction_loss'] = df.loc[df['audio_type']=='cycled', 'reconstruction_loss']
+df.loc[df['audio_type']=='cycled', 'reconstruction_loss'] = None
+if not 'timbre' in df.columns:
+    df['timbre'] = None
+if not 'melody' in df.columns:
+    df['melody'] = None
+breakpoint()
 df.to_csv(os.path.join(pandas_db.path, "migrated.csv"), index=False)
+# df.to_csv(os.path.join(pandas_db.path, "migrated.csv"), index=False)
