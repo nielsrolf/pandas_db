@@ -143,18 +143,6 @@ check_cols = ["loss_function", "z_aggregation", "loudness_algorithm", "crepe_f0"
 for col in check_cols:
     print(col, df.loc[df[col].isnull()].model.unique())
 
-df['s'] = None
-df.loc[df.audio_file.str.endswith('.png'), 's'] = '100.0'
-df['plot_type'] = df.s.apply(lambda x: 'error_heatmap' if x == '100.0' else None)
 
-
-df["cycle_reconstruction_loss"] = None
-df.loc[df['audio_type']=='cycled', 'cycle_reconstruction_loss'] = df.loc[df['audio_type']=='cycled', 'reconstruction_loss']
-df.loc[df['audio_type']=='cycled', 'reconstruction_loss'] = None
-if not 'timbre' in df.columns:
-    df['timbre'] = None
-if not 'melody' in df.columns:
-    df['melody'] = None
-breakpoint()
 df.to_csv(os.path.join(pandas_db.path, "migrated.csv"), index=False)
 # df.to_csv(os.path.join(pandas_db.path, "migrated.csv"), index=False)
