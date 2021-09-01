@@ -32,7 +32,8 @@ def main():
     app.layout = html.Div([
         get_experiment_1(app),
         get_experiment_2(app),
-        get_experiment_3(app)
+        get_experiment_3(app),
+        get_experiment_4(app)
     ])
     app.run_server(host='0.0.0.0', port=8050, debug=("nielswarncke" in os.getcwd()))
 
@@ -154,7 +155,7 @@ def get_experiment_3(app):
             "audio_type": ["cyled"],
             "train_data": ["sh101_train", "combined_train"],
             "test_data_group": ["sh101_test"],
-            "audio_file": ["samples/sh101/sh101_arps_dataset_v3_0113.wav"],
+            "audio_file": ["samples/sh101/sh101_arps_dataset_v3_0254.wav"],
             "baseline_or_improved": ['baseline', 'improved'],
             "intermediate": ['samples/guitar/AR_Lick4_FN.wav'],
             "audio_type": ["cycled"]
@@ -170,6 +171,50 @@ def get_experiment_3(app):
         html.P(description),
         dashboard])
 
+
+
+def get_experiment_4(app):
+    title = "Section 3.3: Fine-tuning on the target timbre improves audio quality even more"
+
+    timbre = html.Audio(src="https://pandasdb-ddsp-demo.s3.eu-central-1.amazonaws.com/.pandas_db_files/samples/urmp_test/AuSep_3_va_13_Hark.wav", controls=True)
+    without_tuning = html.Audio(src="https://pandasdb-ddsp-demo.s3.eu-central-1.amazonaws.com/dashboard/without_tuning.wav", controls=True)
+    with_tuning = html.Audio(src="https://pandasdb-ddsp-demo.s3.eu-central-1.amazonaws.com/dashboard/with_tuning.wav", controls=True)
+    description = html.P([
+        "Timbre transfer of",
+        html.A("somewhere over the rainbow (singing)", href="https://www.youtube.com/watch?v=T_cBmhZ6K3w"),
+        "onto the following target timbre:",
+        timbre,
+        "Without fine-tuning: ", without_tuning,
+        "With fine-tuning:", with_tuning], style={"padding-bottom": "100px"})
+    tuned_db = PandasDB(os.path.join(pandas_db.path, "tuning"), csv_path=os.path.join(pandas_db.path, "tuning/migrated.csv"))
+    df = tuned_db.get_df()
+    df = df.loc[(df['model']=="improved_baseline_ae_combined_train")
+                & (df['fine_tune'].isin(["fine-tuning used", "fine-tuning not used (fair comparison)"]))
+                # & (df['test_data_group'].isin(['urmp_test', 'piano']))
+                & ( (df['s']=="100.0") | (df['plot_type'].isnull()) )]
+    view = {
+        "prefix": "experiment_4",
+        "s3_prefix": "https://pandasdb-ddsp-demo.s3.eu-central-1.amazonaws.com/tuning/",
+        "file_references": {
+            "audio_file": samples_path,
+            "intermediate": samples_path
+        },
+        "default_selection": {
+            "audio_type": ["cyled"],
+            "audio_file": ["samples/piano/elise.wav"],
+            # "intermediate": ['samples/guitar/AR_Lick4_FN.wav'],
+            "audio_type": ["cycled"],
+            "fine_tune": ["fine-tuning not used (fair comparison)", "fine-tuning used"]
+        },
+        "keys": ["fine_tune", "test_data_group", "test_data_src"],
+        "file_id": ["audio_file", "audio_type", "plot_type", "intermediate"],
+        "columns": ["cycle_reconstruction_loss"],
+    }
+    dashboard = get_dashboard(view, df, app)
+    return html.Div([
+        html.H1(title),
+        description,
+        dashboard])
 
 if __name__ == "__main__":
     main()
