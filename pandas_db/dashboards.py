@@ -11,7 +11,6 @@ import plotly.graph_objects as go
 import pandas as pd
 from pandas_db.pandas_db import PandasDB, maybe_float, DEFAULT_PANDAS_DB_PATH
 import numpy as np
-from dash_extensions import Keyboard
 import os
 import base64
 import json
@@ -51,7 +50,7 @@ def get_dashboard(view: dict, df: pd.DataFrame, app: dash.Dash):
                             style={"font-size": "13px"},
                             value=view['default_selection'].get(key),
                             placeholder=key)
-                    ], md=1) for key in dropdown_fields_top], align="center", no_gutters=True))
+                    ], md=1) for key in dropdown_fields_top], align="center", className="g-0"))
     dropdowns_files =  html.Div(dbc.Row([
                     dbc.Col([
                         dcc.Dropdown(
@@ -61,7 +60,7 @@ def get_dashboard(view: dict, df: pd.DataFrame, app: dash.Dash):
                             style={"font-size": "13px"},
                             value=view['default_selection'].get(key),
                             placeholder=key)
-                    ], md=1) for key in dropdown_fields_files], align="center", no_gutters=True))
+                    ], md=1) for key in dropdown_fields_files], align="center", className="g-0"))
 
     
     metrics_plots = dcc.Loading(id=f"{state.prefix}-metrics-view", style={'min-height': '100px'})

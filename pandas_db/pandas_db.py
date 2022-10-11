@@ -65,8 +65,8 @@ class PandasDB():
                 return None
             return values.iloc[-1]
             
-        df = df.sort_values("pandas_db.created")\
-                .groupby(keys)\
+        df = df.sort_values("pandas_db.created")
+        df = df.groupby(keys)\
                 .aggregate({c: latest_entry for c in metrics})
         if metrics is None:
             return df
