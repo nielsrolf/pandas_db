@@ -2,8 +2,7 @@ import pandas_db
 import dash
 from dash.dependencies import Input, Output
 import dash_core_components as dcc
-import dash_table
-import dash_html_components as html
+from dash import html
 import dash_bootstrap_components as dbc
 from jupyter_dash import JupyterDash
 import plotly.express as px
@@ -92,13 +91,13 @@ def get_dashboard(view: dict, df: pd.DataFrame, app: dash.Dash):
         filtered_df, _ = filter_df(*dropdown_values)
         return get_metric_plot(filtered_df, state)
     
-    search = dcc.Input(f"{state.prefix}-global-search", type='text', style={
+    search = dcc.Input(id=f"{state.prefix}-global-search", type='text', style={
         "width": "100%", "height": "30px", "z-index": "10",
         "border": "2px solid #2cb2cb", "position": "fixed", "bottom": "1px"},
         placeholder="Keyword search: enter any number of words you'd like to search")
     
-    cheap_pagination_1 = dcc.Input(f"{state.prefix}-file_id_first", type='number', style={"display": "inline"}, placeholder="0")
-    cheap_pagination_2 = dcc.Input(f"{state.prefix}-file_id_last", type='number', style={"display": "inline"}, placeholder="5")
+    cheap_pagination_1 = dcc.Input(id=f"{state.prefix}-file_id_first", type='number', style={"display": "inline"}, placeholder="0")
+    cheap_pagination_2 = dcc.Input(id=f"{state.prefix}-file_id_last", type='number', style={"display": "inline"}, placeholder="5")
     pagination = html.Div([cheap_pagination_1, " - ", cheap_pagination_2], style={"margin": "auto", "width": "400px"})
 
     detail_view = html.Div([
