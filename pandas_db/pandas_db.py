@@ -6,6 +6,7 @@ from contextlib import contextmanager
 import shutil
 import pathlib
 from glob import glob
+import hashlib
 
 
 import numpy as np
@@ -27,6 +28,10 @@ def modification_time(filepath):
         return dt.datetime.fromtimestamp(fname.stat().st_mtime)
     except FileNotFoundError:
         return None
+
+
+def compute_hash(file_path):
+    return hashlib.md5(open(file_path,'rb').read()).hexdigest()
 
 
 class PandasDB():
@@ -89,7 +94,7 @@ class PandasDB():
             self.context = original_context
     
     def save_artifact(self, filepath, **data):
-        file_id = str(uuid4().hex[:6])
+        file_id = compute_hash(filepath)
         filename = filepath.split("/")[-1]
         dest_dir = os.path.join(self.path,
                             ".pandas_db_files",
@@ -97,7 +102,7 @@ class PandasDB():
         os.makedirs(dest_dir)
         dest = os.path.join(dest_dir, filename)
         shutil.copy(filepath, dest)
-        self.save(file=f"{file_id}/{filename}", filename=filename, **data)
+        self.save(file=f"{file_id}/{filename}", filename=filename, file_hash=file_id, **data)
     
     def mount_dir(self, dir_path, **data):
         pass
